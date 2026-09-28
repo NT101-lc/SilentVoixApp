@@ -1,0 +1,13 @@
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Claude Code personal overrides
+.claude/settings.local.json
+
+# Secrets
+.env
+.env.*
+!.env.example

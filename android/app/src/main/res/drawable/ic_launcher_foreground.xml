@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Speech bubble with three dots: gesture in, spoken language out. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M36,32h36a8,8 0,0 1,8 8v22a8,8 0,0 1,-8 8h-20l-12,10v-10h-4a8,8 0,0 1,-8 -8v-22a8,8 0,0 1,8 -8z" />
+    <path
+        android:fillColor="@color/brand_primary"
+        android:pathData="M38,51a4,4 0,1 0,8 0a4,4 0,1 0,-8 0zM50,51a4,4 0,1 0,8 0a4,4 0,1 0,-8 0zM62,51a4,4 0,1 0,8 0a4,4 0,1 0,-8 0z" />
+</vector>

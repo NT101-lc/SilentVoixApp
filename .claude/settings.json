@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(//home/lumiefre/Documents/code/SilentVoix/**)"
+    ]
+  }
+}
