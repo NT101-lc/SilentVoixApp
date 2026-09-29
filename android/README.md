@@ -21,12 +21,14 @@ Native Android client for SilentVoix: gesture recognition in, spoken-language te
   phones and a navigation rail on larger windows. The Translate screen switches to two panes at ≥ 840 dp.
 - **Dịch** (main screen): live front-camera preview with on-device gesture recognition, start/stop
   button, camera-permission and failure states, backend status, and a result card with a replay control.
-- **Lịch sử**: local demo entries, plus empty and error states you can preview with the chips at the top.
-- **Cài đặt**: theme (system/light/dark), large result text, speech options, app info.
+- **Lịch sử**: every phrase recognised on Dịch, newest first, stored on the device (Room). Filters for all /
+  today / favourites, replay, favourite toggle, and loading, empty and error states driven by the store.
+- **Cài đặt**: theme (system/light/dark), large result text, speech options, app info. Saved with
+  DataStore, so they survive restarts.
 - Accessibility: 48–64 dp touch targets, headings, merged TalkBack nodes, live regions for results and
   status, and text alongside every colour indicator.
 
-### Real vs demo
+### What is real
 
 Real: backend health check (`GET /api/v1/health`, including database readiness), theme switching, large
 result text, gesture recognition (below), and speech: replay on Translate and History, auto-speak of
@@ -43,9 +45,8 @@ The model (`gesture_recognizer.task`, ~8 MB) is not committed: the `downloadGest
 fetches a pinned version into `build/generated/models` and checks its SHA-256, so the first build needs
 network access.
 
-Demo only (clearly labelled in the UI):
-- History: fixed local sample entries; the empty and error states are previews.
-- Settings are held in memory only and reset when the app process ends.
+Settings persist in a Preferences DataStore and history in a Room database, both on the device only;
+history is not synced to the backend. Nothing in the app is demo data any more.
 
 ## Backend URL
 

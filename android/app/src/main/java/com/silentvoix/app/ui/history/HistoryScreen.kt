@@ -1,5 +1,6 @@
 package com.silentvoix.app.ui.history
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -25,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,8 +35,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -49,12 +53,18 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.silentvoix.app.R
-import com.silentvoix.app.data.demo.DemoData
-import com.silentvoix.app.data.demo.DemoHistoryEntry
-import com.silentvoix.app.ui.common.DemoBadge
+import com.silentvoix.app.data.history.EntryDay
+import com.silentvoix.app.data.history.HistoryEntry
+import com.silentvoix.app.data.history.HistoryRepository
+import com.silentvoix.app.data.history.HistoryUiState
+import com.silentvoix.app.data.history.asHistoryUiState
+import com.silentvoix.app.data.history.entryDay
 import com.silentvoix.app.ui.common.ScreenHeader
 import com.silentvoix.app.ui.common.rememberHapticTap
 import com.silentvoix.app.ui.theme.EyebrowStyle
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 private enum class HistoryFilter(@StringRes val labelRes: Int) {
     ALL(R.string.history_filter_all),
@@ -62,28 +72,28 @@ private enum class HistoryFilter(@StringRes val labelRes: Int) {
     FAVOURITES(R.string.history_filter_favourites),
 }
 
+private val TimeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+private val DateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
 @Composable
 fun HistoryScreen(
+    historyRepository: HistoryRepository,
+    onToggleFavourite: (HistoryEntry) -> Unit,
     onNavigateToTranslate: () -> Unit,
     hapticsEnabled: Boolean,
     onSpeak: (String) -> Unit,
     contentPadding: PaddingValues,
 ) {
     var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
-    var favouriteIds by rememberSaveable(
-        stateSaver = listSaver<Set<Int>, Int>(
-            save = { it.toList() },
-            restore = { it.toSet() },
-        ),
-    ) { mutableStateOf(DemoData.defaultFavoriteIds) }
+    // Bumping this re-subscribes to the store after an error.
+    var loadAttempt by remember { mutableIntStateOf(0) }
+    val state by remember(historyRepository, loadAttempt) {
+        historyRepository.entries.asHistoryUiState()
+    }.collectAsStateWithLifecycle(initialValue = HistoryUiState.Loading)
 
     val tap = rememberHapticTap(hapticsEnabled)
-
-    val entries = when (filter) {
-        HistoryFilter.ALL -> DemoData.history
-        HistoryFilter.TODAY -> DemoData.history.filter { it.isToday }
-        HistoryFilter.FAVOURITES -> DemoData.history.filter { it.id in favouriteIds }
-    }
+    val nowMillis = System.currentTimeMillis()
+    val zone = ZoneId.systemDefault()
 
     Column(
         modifier = Modifier
@@ -107,27 +117,46 @@ fun HistoryScreen(
             )
         }
 
-        if (entries.isEmpty()) {
-            EmptyState(
-                filter = filter,
-                onPrimaryAction = {
+        when (val current = state) {
+            HistoryUiState.Loading -> LoadingState()
+            HistoryUiState.Error -> ErrorState(
+                onRetry = {
                     tap()
-                    if (filter == HistoryFilter.ALL) onNavigateToTranslate() else filter = HistoryFilter.ALL
+                    loadAttempt++
                 },
             )
-        } else {
-            HistoryList(
-                entries = entries,
-                favouriteIds = favouriteIds,
-                onToggleFavourite = { id ->
-                    tap()
-                    favouriteIds = if (id in favouriteIds) favouriteIds - id else favouriteIds + id
-                },
-                onReplay = { text ->
-                    tap()
-                    onSpeak(text)
-                },
-            )
+            is HistoryUiState.Loaded -> {
+                val entries = when (filter) {
+                    HistoryFilter.ALL -> current.entries
+                    HistoryFilter.TODAY -> current.entries.filter {
+                        entryDay(it.createdAtMillis, nowMillis, zone) == EntryDay.Today
+                    }
+                    HistoryFilter.FAVOURITES -> current.entries.filter { it.isFavourite }
+                }
+                if (entries.isEmpty()) {
+                    EmptyState(
+                        filter = filter,
+                        onPrimaryAction = {
+                            tap()
+                            if (filter == HistoryFilter.ALL) onNavigateToTranslate() else filter = HistoryFilter.ALL
+                        },
+                    )
+                } else {
+                    HistoryList(
+                        entries = entries,
+                        nowMillis = nowMillis,
+                        zone = zone,
+                        onToggleFavourite = { entry ->
+                            tap()
+                            onToggleFavourite(entry)
+                        },
+                        onReplay = { text ->
+                            tap()
+                            onSpeak(text)
+                        },
+                    )
+                }
+            }
         }
     }
 }
@@ -172,9 +201,10 @@ private fun FilterRow(selected: HistoryFilter, onSelect: (HistoryFilter) -> Unit
 
 @Composable
 private fun HistoryList(
-    entries: List<DemoHistoryEntry>,
-    favouriteIds: Set<Int>,
-    onToggleFavourite: (Int) -> Unit,
+    entries: List<HistoryEntry>,
+    nowMillis: Long,
+    zone: ZoneId,
+    onToggleFavourite: (HistoryEntry) -> Unit,
     onReplay: (String) -> Unit,
 ) {
     LazyVerticalGrid(
@@ -185,25 +215,19 @@ private fun HistoryList(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(
+            Text(
+                text = stringResource(R.string.history_local_note),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                DemoBadge()
-                Text(
-                    text = stringResource(R.string.history_demo_note),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            )
         }
         items(entries, key = { it.id }) { entry ->
             HistoryItem(
                 entry = entry,
-                isFavourite = entry.id in favouriteIds,
-                onToggleFavourite = { onToggleFavourite(entry.id) },
+                dayLabel = dayLabel(entryDay(entry.createdAtMillis, nowMillis, zone)),
+                timeLabel = Instant.ofEpochMilli(entry.createdAtMillis).atZone(zone).format(TimeFormat),
+                onToggleFavourite = { onToggleFavourite(entry) },
                 onReplay = { onReplay(entry.text) },
             )
         }
@@ -211,12 +235,21 @@ private fun HistoryList(
 }
 
 @Composable
+private fun dayLabel(day: EntryDay): String = when (day) {
+    EntryDay.Today -> stringResource(R.string.history_day_today)
+    EntryDay.Yesterday -> stringResource(R.string.history_day_yesterday)
+    is EntryDay.Earlier -> day.date.format(DateFormat)
+}
+
+@Composable
 private fun HistoryItem(
-    entry: DemoHistoryEntry,
-    isFavourite: Boolean,
+    entry: HistoryEntry,
+    dayLabel: String,
+    timeLabel: String,
     onToggleFavourite: () -> Unit,
     onReplay: () -> Unit,
 ) {
+    val isFavourite = entry.isFavourite
     val replayDescription = stringResource(R.string.history_replay_description, entry.text)
     val favouriteDescription = stringResource(
         if (isFavourite) R.string.history_unfavourite_description else R.string.history_favourite_description,
@@ -242,7 +275,7 @@ private fun HistoryItem(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = entry.dayLabel.uppercase(),
+                            text = dayLabel.uppercase(),
                             style = EyebrowStyle,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -253,7 +286,7 @@ private fun HistoryItem(
                                 .background(MaterialTheme.colorScheme.outlineVariant),
                         )
                         Text(
-                            text = entry.timeLabel,
+                            text = timeLabel,
                             style = EyebrowStyle,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -311,6 +344,25 @@ private fun HistoryItem(
 }
 
 @Composable
+private fun LoadingState() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val loading = stringResource(R.string.history_loading)
+        CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = loading })
+    }
+}
+
+@Composable
+private fun ErrorState(onRetry: () -> Unit) {
+    MessageState(
+        iconRes = R.drawable.ic_history,
+        title = stringResource(R.string.history_error_title),
+        body = stringResource(R.string.history_error_body),
+        action = stringResource(R.string.history_error_retry),
+        onAction = onRetry,
+    )
+}
+
+@Composable
 private fun EmptyState(filter: HistoryFilter, onPrimaryAction: () -> Unit) {
     val (titleRes, bodyRes, actionRes) = when (filter) {
         HistoryFilter.ALL -> Triple(
@@ -330,6 +382,24 @@ private fun EmptyState(filter: HistoryFilter, onPrimaryAction: () -> Unit) {
         )
     }
 
+    MessageState(
+        iconRes = if (filter == HistoryFilter.FAVOURITES) R.drawable.ic_favorite_border else R.drawable.ic_history,
+        title = stringResource(titleRes),
+        body = stringResource(bodyRes),
+        action = stringResource(actionRes),
+        onAction = onPrimaryAction,
+    )
+}
+
+/** Centred icon, heading, body and one action: shared by the empty and error states. */
+@Composable
+private fun MessageState(
+    @DrawableRes iconRes: Int,
+    title: String,
+    body: String,
+    action: String,
+    onAction: () -> Unit,
+) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -348,13 +418,7 @@ private fun EmptyState(filter: HistoryFilter, onPrimaryAction: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = ImageVector.vectorResource(
-                        if (filter == HistoryFilter.FAVOURITES) {
-                            R.drawable.ic_favorite_border
-                        } else {
-                            R.drawable.ic_history
-                        },
-                    ),
+                    imageVector = ImageVector.vectorResource(iconRes),
                     contentDescription = null,
                     modifier = Modifier.size(34.dp),
                     tint = MaterialTheme.colorScheme.primary,
@@ -362,23 +426,23 @@ private fun EmptyState(filter: HistoryFilter, onPrimaryAction: () -> Unit) {
             }
             Spacer(Modifier.height(2.dp))
             Text(
-                text = stringResource(titleRes),
+                text = title,
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { heading() },
             )
             Text(
-                text = stringResource(bodyRes),
+                text = body,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
             Button(
-                onClick = onPrimaryAction,
+                onClick = onAction,
                 modifier = Modifier.heightIn(min = 56.dp),
                 shape = CircleShape,
             ) {
-                Text(stringResource(actionRes))
+                Text(action)
             }
         }
     }

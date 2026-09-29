@@ -10,7 +10,6 @@
     <string name="title_settings">Cài đặt</string>
 
     <!-- Shared -->
-    <string name="demo_badge">DỮ LIỆU MẪU</string>
     <string name="action_replay">Đọc lại</string>
 
     <!-- Speech (TextToSpeech) -->
@@ -74,13 +73,19 @@
     <string name="history_filter_all">Tất cả</string>
     <string name="history_filter_today">Hôm nay</string>
     <string name="history_filter_favourites">Yêu thích</string>
-    <string name="history_demo_note">Dữ liệu mẫu lưu trên máy, chưa đồng bộ với máy chủ.</string>
-    <string name="history_item_confidence">Độ tin cậy (mẫu) %1$d%%</string>
+    <string name="history_local_note">Lưu trên thiết bị này, chưa đồng bộ với máy chủ.</string>
+    <string name="history_item_confidence">Độ tin cậy %1$d%%</string>
+    <string name="history_day_today">Hôm nay</string>
+    <string name="history_day_yesterday">Hôm qua</string>
+    <string name="history_loading">Đang tải lịch sử…</string>
+    <string name="history_error_title">Không đọc được lịch sử</string>
+    <string name="history_error_body">Đã xảy ra lỗi khi đọc dữ liệu trên thiết bị. Hãy thử lại.</string>
+    <string name="history_error_retry">Thử lại</string>
     <string name="history_replay_description">Đọc lại: %1$s</string>
     <string name="history_favourite_description">Thêm vào yêu thích: %1$s</string>
     <string name="history_unfavourite_description">Bỏ khỏi yêu thích: %1$s</string>
     <string name="history_empty_title">Chưa có lịch sử</string>
-    <string name="history_empty_body">Các câu được dịch sẽ xuất hiện ở đây.</string>
+    <string name="history_empty_body">Mỗi câu nhận diện được ở màn hình Dịch sẽ được lưu ở đây.</string>
     <string name="history_empty_action">Bắt đầu dịch</string>
     <string name="history_empty_today_title">Hôm nay chưa có câu nào</string>
     <string name="history_empty_today_body">Chưa có câu nào được dịch trong hôm nay.</string>

@@ -54,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,10 +96,10 @@ fun TranslateScreen(
     backendStatus: BackendStatus,
     onRetryBackend: () -> Unit,
     largeResultText: Boolean,
-    autoSpeak: Boolean,
     hapticsEnabled: Boolean,
-    /** Speaks text; the flag is true when the user asked for it (replay), false for auto-speak. */
-    onSpeak: (text: String, userInitiated: Boolean) -> Unit,
+    /** Called once per recognised phrase (auto-speak and history live in the app shell). */
+    onNewResult: (Recognition) -> Unit,
+    onReplay: (String) -> Unit,
     contentPadding: PaddingValues,
 ) {
     val context = LocalContext.current
@@ -108,16 +109,17 @@ fun TranslateScreen(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> session = session.onPermissionResult(granted) }
 
-    // Keyed on the count, not the text, so the same phrase recognised twice is spoken twice.
+    // Keyed on the count, not the text, so the same phrase recognised twice is reported twice.
+    val currentOnNewResult by rememberUpdatedState(onNewResult)
     LaunchedEffect(session.resultCount) {
         val latest = session.latest
-        if (autoSpeak && session.resultCount > 0 && latest != null) onSpeak(latest.text, false)
+        if (session.resultCount > 0 && latest != null) currentOnNewResult(latest)
     }
 
     val tap = rememberHapticTap(hapticsEnabled)
-    val onReplay: () -> Unit = {
+    val replayLatest: () -> Unit = {
         tap()
-        session.latest?.let { onSpeak(it.text, true) }
+        session.latest?.let { onReplay(it.text) }
     }
     val isActive = session.isRunning || session.status == SessionStatus.AwaitingPermission
     val onToggle = {
@@ -184,7 +186,7 @@ fun TranslateScreen(
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
                     Spacer(Modifier.height(4.dp))
-                    ResultPanel(session, largeResultText, onReplay)
+                    ResultPanel(session, largeResultText, replayLatest)
                     BackendRow(backendStatus, onRetryBackend)
                 }
             }
@@ -208,7 +210,7 @@ fun TranslateScreen(
                     )
                     stage()
                     action()
-                    ResultPanel(session, largeResultText, onReplay)
+                    ResultPanel(session, largeResultText, replayLatest)
                     BackendRow(backendStatus, onRetryBackend)
                 }
             }

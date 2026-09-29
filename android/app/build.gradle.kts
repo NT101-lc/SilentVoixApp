@@ -4,6 +4,8 @@ import java.security.MessageDigest
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
 }
 
 // Backend the app talks to. Override with -Psilentvoix.backendBaseUrl=... or in
@@ -41,6 +43,11 @@ androidComponents {
     }
 }
 
+room {
+    // Committed so future schema changes can be checked and migrated.
+    schemaDirectory("$projectDir/schemas")
+}
+
 android {
     namespace = "com.silentvoix.app"
     compileSdk = 37
@@ -64,6 +71,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // java.time (history dates) on minSdk 24.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     buildFeatures {
@@ -89,6 +98,11 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
     implementation(libs.mediapipe.tasks.vision)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     testImplementation(libs.junit)
 }

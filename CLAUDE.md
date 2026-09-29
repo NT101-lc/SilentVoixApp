@@ -53,10 +53,18 @@ Android (`android/`):
   `SilentVoixApp` and released on dispose. Replay (Translate/History) and the Settings preview
   show a snackbar when speech is unavailable; auto-speak stays silent. The manifest's `<queries>`
   entry for `TTS_SERVICE` is required on Android 11+.
-- Demo only, and must stay visibly labelled as such (`DemoBadge`) until implemented: history
-  entries (`data/demo/DemoData`) and its empty/error states. Settings are in memory only.
-- Unit tests (JUnit 4, `app/src/test`) cover `GestureStabilizer`, `TranslateSession` and
-  `SpeechController`: `./gradlew testDebugUnitTest`.
+- Real: persistence. `SilentVoixApplication` (the manifest's `android:name`) holds the stores and an
+  `appScope` for writes. Settings: Preferences DataStore via `data/settings/SettingsRepository`
+  (bad stored values fall back to defaults). History: Room (`data/history/`), one row per
+  recognised phrase, written from `SilentVoixApp.onNewResult`; device-only, not synced to the
+  backend. `HistoryUiState` (loading/error/loaded) is derived from the Room flow. Room schemas
+  are exported to `android/app/schemas/` and committed: bump the version and add a migration
+  when the entity changes.
+- Nothing is demo-only any more; no demo data or `DemoBadge` remains. If a placeholder is ever
+  needed again, label it visibly in the UI.
+- Unit tests (JUnit 4, `app/src/test`) cover `GestureStabilizer`, `TranslateSession`,
+  `SpeechController`, `SettingsRepository` (against a real DataStore file), `HistoryUiState`
+  and history day labels: `./gradlew testDebugUnitTest`.
 
 The Gradle wrapper is committed under `android/` and the app builds. No Maven wrapper is committed
 and `mvn` is not on the PATH; generate it with `mvn wrapper:wrapper`.
@@ -77,7 +85,8 @@ curl http://localhost:8081/api/v1/health
 
 ## Toolchain notes
 
-- AGP 9.x with built-in Kotlin support: the app module applies `com.android.application` and the Compose compiler plugin only; do not add `org.jetbrains.kotlin.android`. The catalog's `kotlin` version (Compose plugin) must match the Kotlin bundled with AGP.
+- AGP 9.x with built-in Kotlin support: the app module applies `com.android.application`, the Compose compiler plugin, KSP and the Room plugin; do not add `org.jetbrains.kotlin.android`. The catalog's `kotlin` version (Compose plugin) must match the Kotlin bundled with AGP. KSP is 2.3.x, which is decoupled from the Kotlin version.
+- Core library desugaring is on so `java.time` works on `minSdk` 24.
 - Icons: `material-icons-core` plus vector drawables in `res/drawable` for icons core lacks (translate, history, volume, videocam, stop). Don't add `material-icons-extended`.
 - `compileSdk`/`targetSdk` 37 (the SDK platform installed locally), `minSdk` 24 (the MediaPipe Tasks minimum), Java 17 bytecode.
 - The local JDK is OpenJDK 27 (via mise); the backend targets Java 21.

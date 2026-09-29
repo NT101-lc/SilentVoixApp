@@ -34,16 +34,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.silentvoix.app.BuildConfig
 import com.silentvoix.app.R
 import com.silentvoix.app.data.backend.BackendHealthClient
+import com.silentvoix.app.SilentVoixApplication
 import com.silentvoix.app.data.backend.BackendStatus
+import com.silentvoix.app.recognition.Recognition
 import com.silentvoix.app.speech.SpeakOutcome
 import com.silentvoix.app.speech.SpeechUnavailableReason
 import com.silentvoix.app.speech.rememberSpeech
 import com.silentvoix.app.ui.common.rememberHapticTap
 import com.silentvoix.app.ui.history.HistoryScreen
-import com.silentvoix.app.ui.settings.AppSettings
 import com.silentvoix.app.ui.settings.SettingsScreen
 import com.silentvoix.app.ui.theme.SilentVoixTheme
 import com.silentvoix.app.ui.translate.TranslateScreen
@@ -56,7 +58,11 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun SilentVoixApp() {
-    var settings by rememberSaveable(stateSaver = AppSettings.Saver) { mutableStateOf(AppSettings()) }
+    val app = LocalContext.current.applicationContext as SilentVoixApplication
+    // Null until the stored settings are read (a few ms); drawing nothing meanwhile avoids a
+    // flash of the default theme before a saved dark theme applies.
+    val storedSettings by app.settingsRepository.settings.collectAsStateWithLifecycle(initialValue = null)
+    val settings = storedSettings ?: return
     var destination by rememberSaveable { mutableStateOf(AppDestination.TRANSLATE) }
     val screenStateHolder = rememberSaveableStateHolder()
 
@@ -98,6 +104,14 @@ fun SilentVoixApp() {
     val speak: (String, Boolean) -> Unit = { text, userInitiated ->
         val outcome = speech.speak(text)
         if (userInitiated) reportSpeakOutcome(outcome)
+    }
+    // Every recognised phrase is saved to history; auto-speak stays quiet if speech is unavailable
+    // so an unavailable voice does not raise a message on every gesture.
+    val onNewResult: (Recognition) -> Unit = { recognition ->
+        app.appScope.launch {
+            app.historyRepository.add(recognition.text, recognition.confidencePercent)
+        }
+        if (settings.autoSpeak) speak(recognition.text, false)
     }
 
     val layoutType = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
@@ -164,12 +178,18 @@ fun SilentVoixApp() {
                             backendStatus = backendStatus,
                             onRetryBackend = retryHealthCheck,
                             largeResultText = settings.largeResultText,
-                            autoSpeak = settings.autoSpeak,
                             hapticsEnabled = settings.haptics,
-                            onSpeak = speak,
+                            onNewResult = onNewResult,
+                            onReplay = { speak(it, true) },
                             contentPadding = contentPadding,
                         )
                         AppDestination.HISTORY -> HistoryScreen(
+                            historyRepository = app.historyRepository,
+                            onToggleFavourite = { entry ->
+                                app.appScope.launch {
+                                    app.historyRepository.setFavourite(entry.id, !entry.isFavourite)
+                                }
+                            },
                             onNavigateToTranslate = { destination = AppDestination.TRANSLATE },
                             hapticsEnabled = settings.haptics,
                             onSpeak = { speak(it, true) },
@@ -177,7 +197,9 @@ fun SilentVoixApp() {
                         )
                         AppDestination.SETTINGS -> SettingsScreen(
                             settings = settings,
-                            onSettingsChange = { settings = it },
+                            onSettingsChange = { changed ->
+                                app.appScope.launch { app.settingsRepository.update { changed } }
+                            },
                             backendStatus = backendStatus,
                             speechStatus = speech.status,
                             onPreviewSpeech = { speak(it, true) },
