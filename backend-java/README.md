@@ -77,7 +77,8 @@ cd backend-java
 curl http://localhost:8081/api/v1/health
 ```
 
-The tests need no database: the DOWN case points the real driver at a closed local port.
+The tests need no database: the DOWN case points the real driver at a closed local port. CI runs
+`./mvnw verify` (tests plus packaging) on JDK 21 for every pull request and push to `main`.
 
 ## Not in Phase 1
 

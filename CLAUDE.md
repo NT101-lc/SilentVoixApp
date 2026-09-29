@@ -72,7 +72,9 @@ Android (`android/`):
   and history day labels: `./gradlew testDebugUnitTest`.
 
 Both wrappers are committed (Gradle under `android/`, Maven 3.9.16 `mvnw` under `backend-java/`);
-neither `gradle` nor `mvn` needs to be on the PATH.
+neither `gradle` nor `mvn` needs to be on the PATH. CI is `.github/workflows/ci.yml`: on pull
+requests and pushes to `main` it runs `./mvnw -B verify` (JDK 21) and
+`./gradlew testDebugUnitTest lintDebug assembleDebug` (JDK 21) as two separate checks.
 
 ## Commands
 

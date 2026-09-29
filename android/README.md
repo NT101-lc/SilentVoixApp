@@ -63,12 +63,17 @@ Plain HTTP is allowed only in **debug** builds and only to `10.0.2.2`, `localhos
 (`src/debug/res/xml/network_security_config.xml`). Release builds require HTTPS. For a physical
 device, run `adb reverse tcp:8081 tcp:8081` and use `http://localhost:8081`.
 
-## Opening
+## Building
 
-Open this `android/` directory in Android Studio. **No Gradle wrapper is committed**; let Android Studio
-generate it (or run `gradle wrapper` with Gradle 9.x), then commit `gradlew`, `gradlew.bat` and
-`gradle/wrapper/`.
+Open this `android/` directory in Android Studio, or use the committed Gradle wrapper (Gradle 9.6; needs
+JDK 17+ and the Android SDK with platform 37, which AGP installs if missing):
 
-The versions in `gradle/libs.versions.toml` (AGP 9.4.1, Kotlin 2.2.10, Compose BOM 2025.01.00,
-activity-compose 1.10.1) have not been verified by a build here. If sync fails, align them first. The
-`kotlin` version must match the Kotlin bundled with AGP.
+```bash
+cd android
+./gradlew testDebugUnitTest   # unit tests (recognition, speech, settings, history)
+./gradlew lintDebug
+./gradlew assembleDebug       # app/build/outputs/apk/debug/app-debug.apk
+```
+
+CI (`.github/workflows/ci.yml`) runs exactly these three tasks on every pull request and push to `main`.
+The `kotlin` version in `gradle/libs.versions.toml` must match the Kotlin bundled with AGP.
