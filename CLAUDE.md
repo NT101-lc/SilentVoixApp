@@ -21,8 +21,7 @@ Two independent projects, each opened on its own (not from the repo root):
 The app talks only to the backend (REST; WebSocket planned). It must never connect to the
 database directly. The backend listens on `8081` (`PORT` overrides).
 
-Planned but not yet in any build file: CameraX, MediaPipe Tasks, Android `TextToSpeech`, Spring
-WebSocket. Add a dependency only when the code that uses it lands.
+Planned but not yet in any build file: Android `TextToSpeech`, Spring WebSocket. Add a dependency only when the code that uses it lands.
 
 ## Current state: Phase 1
 
@@ -42,14 +41,19 @@ Android (`android/`):
 - Real: backend health check (`data/backend/BackendHealthClient`, base URL from
   `BuildConfig.BACKEND_BASE_URL`, Gradle property `silentvoix.backendBaseUrl`, default
   `http://10.0.2.2:8081`). Cleartext HTTP is allowed only in debug, only to localhost/10.0.2.2.
-- Demo only, and must stay visibly labelled as such (`DemoBadge`) until implemented: recognition
-  results (`data/demo/DemoData`), the camera preview, speech/replay, history entries and its
-  empty/error states. Settings are in memory only.
-- No tests exist yet.
+- Real: gesture recognition in `recognition/` + `ui/translate/GestureCamera.kt`. CameraX frames go
+  to MediaPipe's stock Gesture Recognizer (7 canned gestures mapped to phrases in
+  `GesturePhrases.kt`; not Vietnamese Sign Language, and the UI says so). `GestureStabilizer`
+  debounces per-frame output; `TranslateSession` is the screen's state machine. The model is not
+  committed: the `downloadGestureModel` Gradle task fetches it (pinned URL + SHA-256) into
+  generated assets, so the first build needs network.
+- Demo only, and must stay visibly labelled as such (`DemoBadge`) until implemented: speech/replay,
+  history entries (`data/demo/DemoData`) and its empty/error states. Settings are in memory only.
+- Unit tests (JUnit 4, `app/src/test`) cover `GestureStabilizer` and `TranslateSession`:
+  `./gradlew testDebugUnitTest`.
 
-No Gradle wrapper and no Maven wrapper are committed, and neither `gradle` nor `mvn` is on the
-PATH, so nothing has been built. Generate the Gradle wrapper via Android Studio (or
-`gradle wrapper`), and the Maven wrapper with `mvn wrapper:wrapper`.
+The Gradle wrapper is committed under `android/` and the app builds. No Maven wrapper is committed
+and `mvn` is not on the PATH; generate it with `mvn wrapper:wrapper`.
 
 ## Commands (once wrappers exist)
 

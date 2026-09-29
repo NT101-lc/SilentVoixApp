@@ -11,7 +11,6 @@
 
     <!-- Shared -->
     <string name="demo_badge">DỮ LIỆU MẪU</string>
-    <string name="demo_mode_badge">CHẾ ĐỘ DEMO</string>
     <string name="action_replay">Đọc lại</string>
     <string name="message_tts_unavailable">Đọc thành tiếng chưa được hỗ trợ trong bản demo.</string>
 
@@ -27,22 +26,44 @@
 
     <!-- Translate: capture stage -->
     <string name="stage_idle_title">Đưa bàn tay vào khung</string>
-    <string name="stage_idle_body">Camera chưa được bật trong phiên bản này. Khung hình bên dưới là hình minh hoạ.</string>
-    <string name="stage_active_title">Đang đọc cử chỉ</string>
-    <string name="stage_active_body">Giữ bàn tay trong khung. Kết quả hiện ra là câu mẫu có sẵn.</string>
-    <string name="stage_live">ĐANG MÔ PHỎNG</string>
-    <string name="action_start_demo">Bắt đầu mô phỏng</string>
-    <string name="action_stop_demo">Dừng mô phỏng</string>
+    <string name="stage_idle_body">Nhấn “Bắt đầu nhận diện” để bật camera. Hình ảnh chỉ được xử lý trên máy, không gửi đi đâu.</string>
+    <string name="stage_starting">Đang khởi động camera…</string>
+    <string name="stage_active_title">Giữ bàn tay trong khung</string>
+    <string name="stage_live">ĐANG NHẬN DIỆN</string>
+    <string name="stage_permission_title">Cần quyền truy cập camera</string>
+    <string name="stage_permission_body">Cho phép SilentVoix dùng camera để nhận diện cử chỉ.</string>
+    <string name="stage_permission_denied_title">Chưa được cấp quyền camera</string>
+    <string name="stage_permission_denied_body">SilentVoix cần camera để nhận diện cử chỉ. Bạn có thể cấp quyền trong phần cài đặt ứng dụng.</string>
+    <string name="stage_error_camera_title">Không mở được camera</string>
+    <string name="stage_error_camera_body">Camera đang bận hoặc không có trên thiết bị này. Hãy đóng ứng dụng khác đang dùng camera rồi thử lại.</string>
+    <string name="stage_error_model_title">Không tải được mô hình nhận diện</string>
+    <string name="stage_error_model_body">Tệp mô hình bị thiếu hoặc hỏng. Hãy cài lại ứng dụng rồi thử lại.</string>
+    <string name="stage_error_inference_title">Nhận diện bị gián đoạn</string>
+    <string name="stage_error_inference_body">Đã xảy ra lỗi khi xử lý hình ảnh. Hãy thử lại.</string>
+    <string name="action_start">Bắt đầu nhận diện</string>
+    <string name="action_stop">Dừng nhận diện</string>
+    <string name="action_retry">Thử lại</string>
+    <string name="action_open_settings">Mở cài đặt ứng dụng</string>
 
     <!-- Translate: result -->
     <string name="result_title">KẾT QUẢ</string>
     <string name="result_idle_title">Chưa có kết quả</string>
-    <string name="result_idle_body">Nhấn “Bắt đầu mô phỏng” để xem một câu mẫu.</string>
+    <string name="result_idle_body">Nhấn “Bắt đầu nhận diện” rồi giữ một cử chỉ trong khung.</string>
     <string name="result_waiting">Đang đọc cử chỉ…</string>
     <string name="result_none_title">Không nhận được câu nào</string>
-    <string name="result_none_body">Phiên mô phỏng đã dừng trước khi có kết quả. Hãy thử lại.</string>
-    <string name="result_content_description">Kết quả mẫu: %1$s</string>
-    <string name="result_confidence">Độ tin cậy (mẫu): %1$d%%</string>
+    <string name="result_none_body">Phiên nhận diện đã dừng trước khi nhận ra cử chỉ nào. Hãy thử lại.</string>
+    <string name="result_content_description">Kết quả: %1$s</string>
+    <string name="result_confidence">Độ tin cậy: %1$d%%</string>
+    <string name="result_model_note">Mô hình hiện tại nhận diện 7 cử chỉ tay cơ bản (xoè tay, giơ ngón cái lên/xuống, chữ V, chỉ tay lên, nắm tay, “I love you”), chưa phải ngôn ngữ ký hiệu Việt Nam.</string>
+
+    <!-- Phrases for the stock MediaPipe gestures (recognition/GesturePhrases.kt) -->
+    <string name="gesture_open_palm">Xin chào</string>
+    <string name="gesture_thumb_up">Đồng ý</string>
+    <string name="gesture_thumb_down">Không đồng ý</string>
+    <string name="gesture_victory">Tuyệt vời</string>
+    <string name="gesture_pointing_up">Cho tôi hỏi</string>
+    <string name="gesture_closed_fist">Dừng lại</string>
+    <string name="gesture_i_love_you">Tôi yêu bạn</string>
 
     <!-- History -->
     <string name="history_eyebrow">CÂU ĐÃ DỊCH</string>
@@ -85,5 +106,5 @@
     <string name="settings_about_backend">Địa chỉ máy chủ</string>
     <string name="settings_about_backend_status">Trạng thái máy chủ</string>
     <string name="settings_about_recognition">Nhận diện ký hiệu</string>
-    <string name="settings_about_recognition_value">Chưa triển khai. Kết quả hiển thị là dữ liệu mẫu.</string>
+    <string name="settings_about_recognition_value">Trên máy (MediaPipe) · 7 cử chỉ tay cơ bản, chưa hỗ trợ ngôn ngữ ký hiệu Việt Nam</string>
 </resources>

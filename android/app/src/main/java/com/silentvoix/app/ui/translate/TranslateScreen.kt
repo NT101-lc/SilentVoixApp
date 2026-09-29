@@ -1,5 +1,12 @@
 package com.silentvoix.app.ui.translate
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
@@ -31,6 +38,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -42,11 +50,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +63,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -68,24 +75,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.silentvoix.app.R
 import com.silentvoix.app.data.backend.BackendStatus
-import com.silentvoix.app.data.demo.DemoData
-import com.silentvoix.app.data.demo.DemoRecognition
-import com.silentvoix.app.ui.common.DemoBadge
+import com.silentvoix.app.recognition.Recognition
+import com.silentvoix.app.recognition.RecognitionFailure
+import com.silentvoix.app.recognition.SessionStatus
+import com.silentvoix.app.recognition.TranslateSession
 import com.silentvoix.app.ui.common.ScreenHeader
 import com.silentvoix.app.ui.common.backendStatusColor
 import com.silentvoix.app.ui.common.backendStatusText
 import com.silentvoix.app.ui.common.rememberHapticTap
 import com.silentvoix.app.ui.theme.EyebrowStyle
 import com.silentvoix.app.ui.theme.StagePalette
-import kotlinx.coroutines.delay
 
-private const val FIRST_RESULT_DELAY_MS = 1_800L
-private const val NEXT_RESULT_DELAY_MS = 3_200L
 private val TwoPaneMinWidth = 840.dp
 private val SinglePaneMaxWidth = 560.dp
-
-/** What the screen is showing right now. Drives the stage, the button and the result panel. */
-private enum class DemoPhase { IDLE, LISTENING, RESULT, NO_RESULT }
 
 @Composable
 fun TranslateScreen(
@@ -96,25 +98,12 @@ fun TranslateScreen(
     onShowMessage: (String) -> Unit,
     contentPadding: PaddingValues,
 ) {
-    var isRunning by rememberSaveable { mutableStateOf(false) }
-    var resultIndex by rememberSaveable { mutableIntStateOf(-1) }
-    var hasRunOnce by rememberSaveable { mutableStateOf(false) }
-
-    // Demo only: cycles through canned phrases. No camera frames or model are involved.
-    LaunchedEffect(isRunning) {
-        while (isRunning) {
-            delay(if (resultIndex < 0) FIRST_RESULT_DELAY_MS else NEXT_RESULT_DELAY_MS)
-            resultIndex = (resultIndex + 1) % DemoData.recognitions.size
-        }
-    }
-
-    val recognition = DemoData.recognitions.getOrNull(resultIndex)
-    val phase = when {
-        recognition != null -> DemoPhase.RESULT
-        isRunning -> DemoPhase.LISTENING
-        hasRunOnce -> DemoPhase.NO_RESULT
-        else -> DemoPhase.IDLE
-    }
+    val context = LocalContext.current
+    // Not saved across tab switches on purpose: leaving the screen releases the camera.
+    var session by remember { mutableStateOf(TranslateSession()) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> session = session.onPermissionResult(granted) }
 
     val tap = rememberHapticTap(hapticsEnabled)
     val ttsUnavailable = stringResource(R.string.message_tts_unavailable)
@@ -122,15 +111,35 @@ fun TranslateScreen(
         tap()
         onShowMessage(ttsUnavailable)
     }
+    val isActive = session.isRunning || session.status == SessionStatus.AwaitingPermission
     val onToggle = {
         tap()
-        if (isRunning) {
-            isRunning = false
+        if (isActive) {
+            session = session.onStopRequested()
         } else {
-            isRunning = true
-            hasRunOnce = true
-            resultIndex = -1
+            val hasPermission = context.checkSelfPermission(Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED
+            session = session.onStartRequested(hasPermission)
+            if (!hasPermission) permissionLauncher.launch(Manifest.permission.CAMERA)
         }
+    }
+    val onOpenSettings = {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.fromParts("package", context.packageName, null)),
+        )
+    }
+    val stage: @Composable () -> Unit = {
+        CaptureStage(
+            status = session.status,
+            onReady = { session = session.onEngineReady() },
+            onRecognized = { session = session.onRecognized(it) },
+            onFailure = { session = session.onFailure(it) },
+            onOpenSettings = onOpenSettings,
+        )
+    }
+    val action: @Composable () -> Unit = {
+        PrimaryAction(isActive = isActive, isRetry = session.status is SessionStatus.Failed, onToggle = onToggle)
     }
 
     BoxWithConstraints(
@@ -156,8 +165,8 @@ fun TranslateScreen(
                         eyebrow = stringResource(R.string.app_name),
                         title = stringResource(R.string.title_translate),
                     )
-                    CaptureStage(phase = phase)
-                    PrimaryAction(isRunning = isRunning, onToggle = onToggle)
+                    stage()
+                    action()
                 }
                 Column(
                     modifier = Modifier
@@ -167,7 +176,7 @@ fun TranslateScreen(
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
                     Spacer(Modifier.height(4.dp))
-                    ResultPanel(phase, recognition, largeResultText, onReplay)
+                    ResultPanel(session, largeResultText, onReplay)
                     BackendRow(backendStatus, onRetryBackend)
                 }
             }
@@ -189,9 +198,9 @@ fun TranslateScreen(
                         eyebrow = stringResource(R.string.app_name),
                         title = stringResource(R.string.title_translate),
                     )
-                    CaptureStage(phase = phase)
-                    PrimaryAction(isRunning = isRunning, onToggle = onToggle)
-                    ResultPanel(phase, recognition, largeResultText, onReplay)
+                    stage()
+                    action()
+                    ResultPanel(session, largeResultText, onReplay)
                     BackendRow(backendStatus, onRetryBackend)
                 }
             }
@@ -200,15 +209,21 @@ fun TranslateScreen(
 }
 
 /**
- * The gesture capture area: an ink panel with a hand-framing guide. It is the visual anchor of
- * the app, and in this milestone it is a placeholder — no camera is opened and no permission is
- * requested.
+ * The gesture capture area: an ink panel that shows the live camera while a session runs, and
+ * otherwise the framing guide with copy explaining the current state (idle, waiting for camera
+ * permission, permission denied, or a failure).
  */
 @Composable
-private fun CaptureStage(phase: DemoPhase) {
-    val isActive = phase == DemoPhase.LISTENING || phase == DemoPhase.RESULT
+private fun CaptureStage(
+    status: SessionStatus,
+    onReady: () -> Unit,
+    onRecognized: (Recognition) -> Unit,
+    onFailure: (RecognitionFailure) -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    val isLive = status == SessionStatus.Listening
     val guideColor by animateColorAsState(
-        targetValue = if (isActive) StagePalette.Guide else StagePalette.GuideIdle,
+        targetValue = if (isLive) StagePalette.Guide else StagePalette.GuideIdle,
         animationSpec = tween(durationMillis = 450),
         label = "guideColor",
     )
@@ -224,54 +239,114 @@ private fun CaptureStage(phase: DemoPhase) {
         ),
         label = "breath",
     )
-    val guideAlpha = if (isActive) breath else 0.7f
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(3f / 4f)
             .clip(RoundedCornerShape(30.dp))
-            .background(StagePalette.Ink)
-            .semantics(mergeDescendants = true) {},
+            .background(StagePalette.Ink),
     ) {
+        val isRunning = status == SessionStatus.Starting || status == SessionStatus.Listening
+        if (isRunning) {
+            GestureCamera(
+                onReady = onReady,
+                onRecognized = onRecognized,
+                onFailure = onFailure,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
         HandFramingGuide(
             color = guideColor,
-            alpha = guideAlpha,
+            alpha = if (isLive) breath else 0.7f,
             modifier = Modifier.fillMaxSize(),
         )
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Crossfade(targetState = isActive, label = "stageCopy") { active ->
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    if (!active) {
-                        Icon(
-                            imageVector = ImageVector.vectorResource(R.drawable.ic_videocam),
-                            contentDescription = null,
-                            tint = StagePalette.OnInkMuted,
-                            modifier = Modifier.size(34.dp),
-                        )
-                    }
-                    Text(
-                        text = stringResource(
-                            if (active) R.string.stage_active_title else R.string.stage_idle_title,
-                        ),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = StagePalette.OnInk,
-                        textAlign = TextAlign.Center,
+        if (status == SessionStatus.Starting) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(32.dp),
+                color = StagePalette.OnInk,
+                strokeWidth = 3.dp,
+            )
+        }
+
+        StageMessage(
+            status = status,
+            onOpenSettings = onOpenSettings,
+            modifier = Modifier.align(if (isRunning) Alignment.BottomCenter else Alignment.Center),
+        )
+
+        if (isLive) {
+            LivePill(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp),
+                alpha = breath,
+            )
+        }
+    }
+}
+
+/** The stage copy for [status]. Announced politely so TalkBack users hear state changes. */
+@Composable
+private fun StageMessage(
+    status: SessionStatus,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val (title, body) = when (status) {
+        SessionStatus.Idle -> R.string.stage_idle_title to R.string.stage_idle_body
+        SessionStatus.AwaitingPermission ->
+            R.string.stage_permission_title to R.string.stage_permission_body
+        SessionStatus.PermissionDenied ->
+            R.string.stage_permission_denied_title to R.string.stage_permission_denied_body
+        SessionStatus.Starting -> R.string.stage_starting to null
+        SessionStatus.Listening -> R.string.stage_active_title to null
+        is SessionStatus.Failed -> when (status.failure) {
+            RecognitionFailure.CAMERA_UNAVAILABLE ->
+                R.string.stage_error_camera_title to R.string.stage_error_camera_body
+            RecognitionFailure.MODEL_UNAVAILABLE ->
+                R.string.stage_error_model_title to R.string.stage_error_model_body
+            RecognitionFailure.INFERENCE ->
+                R.string.stage_error_inference_title to R.string.stage_error_inference_body
+        }
+    }
+    val showIcon = status == SessionStatus.Idle || status == SessionStatus.PermissionDenied ||
+        status is SessionStatus.Failed
+
+    Column(
+        modifier = modifier.padding(horizontal = 32.dp, vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Crossfade(targetState = Triple(title, body, showIcon), label = "stageCopy") { (t, b, icon) ->
+            Column(
+                modifier = Modifier.semantics(mergeDescendants = true) {
+                    liveRegion = LiveRegionMode.Polite
+                },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (icon) {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.ic_videocam),
+                        contentDescription = null,
+                        tint = StagePalette.OnInkMuted,
+                        modifier = Modifier.size(34.dp),
                     )
+                }
+                Text(
+                    text = stringResource(t),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = StagePalette.OnInk,
+                    textAlign = TextAlign.Center,
+                )
+                if (b != null) {
                     Text(
-                        text = stringResource(
-                            if (active) R.string.stage_active_body else R.string.stage_idle_body,
-                        ),
+                        text = stringResource(b),
                         style = MaterialTheme.typography.bodyMedium,
                         color = StagePalette.OnInkMuted,
                         textAlign = TextAlign.Center,
@@ -279,22 +354,13 @@ private fun CaptureStage(phase: DemoPhase) {
                 }
             }
         }
-
-        DemoBadge(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(16.dp),
-            text = stringResource(R.string.demo_mode_badge),
-            contentColor = StagePalette.OnInkMuted,
-        )
-
-        if (isActive) {
-            LivePill(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp),
-                alpha = breath,
-            )
+        if (status == SessionStatus.PermissionDenied) {
+            OutlinedButton(
+                onClick = onOpenSettings,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = StagePalette.OnInk),
+            ) {
+                Text(stringResource(R.string.action_open_settings))
+            }
         }
     }
 }
@@ -358,8 +424,8 @@ private fun LivePill(modifier: Modifier = Modifier, alpha: Float) {
 }
 
 @Composable
-private fun PrimaryAction(isRunning: Boolean, onToggle: () -> Unit) {
-    val colors = if (isRunning) {
+private fun PrimaryAction(isActive: Boolean, isRetry: Boolean, onToggle: () -> Unit) {
+    val colors = if (isActive) {
         ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.errorContainer,
             contentColor = MaterialTheme.colorScheme.onErrorContainer,
@@ -379,7 +445,7 @@ private fun PrimaryAction(isRunning: Boolean, onToggle: () -> Unit) {
         colors = colors,
     ) {
         Icon(
-            imageVector = if (isRunning) {
+            imageVector = if (isActive) {
                 ImageVector.vectorResource(R.drawable.ic_stop)
             } else {
                 Icons.Filled.PlayArrow
@@ -390,7 +456,11 @@ private fun PrimaryAction(isRunning: Boolean, onToggle: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Text(
             text = stringResource(
-                if (isRunning) R.string.action_stop_demo else R.string.action_start_demo,
+                when {
+                    isActive -> R.string.action_stop
+                    isRetry -> R.string.action_retry
+                    else -> R.string.action_start
+                },
             ),
             style = MaterialTheme.typography.titleMedium,
         )
@@ -399,11 +469,11 @@ private fun PrimaryAction(isRunning: Boolean, onToggle: () -> Unit) {
 
 @Composable
 private fun ResultPanel(
-    phase: DemoPhase,
-    recognition: DemoRecognition?,
+    session: TranslateSession,
     largeResultText: Boolean,
     onReplay: () -> Unit,
 ) {
+    val recognition = session.latest
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
@@ -414,39 +484,39 @@ private fun ResultPanel(
             modifier = Modifier.padding(22.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.result_title),
-                    style = EyebrowStyle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .weight(1f)
-                        .semantics { heading() },
-                )
-                DemoBadge()
-            }
+            Text(
+                text = stringResource(R.string.result_title),
+                style = EyebrowStyle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.semantics { heading() },
+            )
 
-            when (phase) {
-                DemoPhase.RESULT -> if (recognition != null) {
-                    ResultContent(recognition, largeResultText, onReplay)
-                }
-                DemoPhase.LISTENING -> WaitingContent()
-                DemoPhase.NO_RESULT -> PlaceholderContent(
+            when {
+                recognition != null -> ResultContent(recognition, largeResultText, onReplay)
+                session.isRunning -> WaitingContent()
+                session.hasRunOnce -> PlaceholderContent(
                     title = stringResource(R.string.result_none_title),
                     body = stringResource(R.string.result_none_body),
                 )
-                DemoPhase.IDLE -> PlaceholderContent(
+                else -> PlaceholderContent(
                     title = stringResource(R.string.result_idle_title),
                     body = stringResource(R.string.result_idle_body),
                 )
             }
+
+            // The stock model knows a few common gestures, not VSL; say so next to every result.
+            Text(
+                text = stringResource(R.string.result_model_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
 
 @Composable
 private fun ResultContent(
-    recognition: DemoRecognition,
+    recognition: Recognition,
     largeResultText: Boolean,
     onReplay: () -> Unit,
 ) {
@@ -459,7 +529,7 @@ private fun ResultContent(
             MaterialTheme.typography.headlineSmall
         },
         color = MaterialTheme.colorScheme.onSurface,
-        // Announced by TalkBack whenever a new (sample) result appears.
+        // Announced by TalkBack whenever a new result appears.
         modifier = Modifier.semantics {
             contentDescription = description
             liveRegion = LiveRegionMode.Polite

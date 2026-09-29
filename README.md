@@ -14,5 +14,6 @@ connects to the database.
 
 - Backend: `GET /api/v1/health` with a Neon PostgreSQL readiness check, configured through environment
   variables (`backend-java/.env.example`).
-- Android: adaptive Vietnamese UI (Dịch / Lịch sử / Cài đặt) with a real backend health check. Recognition,
-  camera, speech and history are demo-only and labelled as such in the app.
+- Android: adaptive Vietnamese UI (Dịch / Lịch sử / Cài đặt) with a real backend health check and on-device
+  gesture recognition (CameraX + MediaPipe's stock gesture model, not yet Vietnamese Sign Language). Speech
+  and history are demo-only and labelled as such in the app.

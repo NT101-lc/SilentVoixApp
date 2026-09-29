@@ -12,15 +12,15 @@ Native Android client for SilentVoix: gesture recognition in, spoken-language te
 | Language / build | Kotlin (AGP 9 built-in), Gradle Kotlin DSL, version catalog | in use |
 | UI | Jetpack Compose, Material 3, `material3-adaptive-navigation-suite` | in use |
 | Backend calls | `HttpURLConnection` + `org.json` to `../backend-java/` | health check only |
-| Camera / inference | CameraX, MediaPipe Tasks | planned |
+| Camera / inference | CameraX, MediaPipe Tasks (Gesture Recognizer) | in use, stock gesture model |
 | Speech output | Android `TextToSpeech` | planned |
 
 ## Phase 1 UI
 
 - **Adaptive navigation**: `NavigationSuiteScaffold` shows a bottom bar (`Dịch`, `Lịch sử`, `Cài đặt`) on
   phones and a navigation rail on larger windows. The Translate screen switches to two panes at ≥ 840 dp.
-- **Dịch** (main screen): camera-preview placeholder, start/stop simulation button, backend and
-  recognition status, and a result card with a replay control.
+- **Dịch** (main screen): live front-camera preview with on-device gesture recognition, start/stop
+  button, camera-permission and failure states, backend status, and a result card with a replay control.
 - **Lịch sử**: local demo entries, plus empty and error states you can preview with the chips at the top.
 - **Cài đặt**: theme (system/light/dark), large result text, speech options, app info.
 - Accessibility: 48–64 dp touch targets, headings, merged TalkBack nodes, live regions for results and
@@ -29,11 +29,19 @@ Native Android client for SilentVoix: gesture recognition in, spoken-language te
 ### Real vs demo
 
 Real: backend health check (`GET /api/v1/health`, including database readiness), theme switching, large
-result text.
+result text, and gesture recognition (below).
+
+Recognition: CameraX streams frames to MediaPipe's pretrained Gesture Recognizer, on the device. It knows
+7 common hand gestures (open palm, thumb up/down, victory, pointing up, closed fist, "I love you"), which
+`recognition/GesturePhrases.kt` maps to Vietnamese phrases. **It is not Vietnamese Sign Language**, and the
+result card says so; a custom VSL model would replace the `.task` file and that table.
+`recognition/GestureStabilizer.kt` only reports a gesture once it is held for 5 frames in a row.
+
+The model (`gesture_recognizer.task`, ~8 MB) is not committed: the `downloadGestureModel` Gradle task
+fetches a pinned version into `build/generated/models` and checks its SHA-256, so the first build needs
+network access.
 
 Demo only (clearly labelled in the UI):
-- Recognition results: canned phrases cycled by a timer. There is no camera or model.
-- Camera preview: a placeholder.
 - Replay / speech: shows a message; TextToSpeech is not integrated. The speech settings have no effect yet.
 - History: fixed local sample entries; the empty and error states are previews.
 - Settings are held in memory only and reset when the app process ends.
