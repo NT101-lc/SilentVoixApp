@@ -68,14 +68,16 @@ the app from `backend-java/`. Real environment variables override values in `.en
 
 ## Running
 
-No Maven wrapper is committed yet (`mvn wrapper:wrapper` creates one), and `mvn` is not on this machine's
-PATH. With Maven available:
+The Maven wrapper (`mvnw`, Maven 3.9.16) is committed, so Maven does not need to be installed:
 
 ```bash
 cd backend-java
-mvn spring-boot:run
+./mvnw test              # health endpoint + database readiness tests
+./mvnw spring-boot:run
 curl http://localhost:8081/api/v1/health
 ```
+
+The tests need no database: the DOWN case points the real driver at a closed local port.
 
 ## Not in Phase 1
 

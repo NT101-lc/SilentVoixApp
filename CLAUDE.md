@@ -34,6 +34,11 @@ Backend (`backend-java/`):
 - DB settings come from env vars `SILENTVOIX_DATABASE_URL` (JDBC form, Neon pooled `-pooler` host),
   `SILENTVOIX_DATABASE_USERNAME`, `SILENTVOIX_DATABASE_PASSWORD`, optionally loaded from a
   git-ignored `backend-java/.env` (see `.env.example`). Never log or return the URL or password.
+- Tests (JUnit 5, `spring-boot-starter-webmvc-test`): `DatabaseHealthCheckerTest` (UP/DOWN/
+  NOT_CONFIGURED with a hand-rolled `FakeDataSource`, no Mockito), `HealthEndpointTest` (full
+  context + MockMvc per database state; the DOWN case uses the real Hikari/PostgreSQL driver
+  against a closed port and asserts no credential appears in the body), and
+  `DatabaseConfigurationTest` (a malformed URL is never echoed). `./mvnw test`.
 
 Android (`android/`):
 - Vietnamese UI in `res/values/strings.xml`. `ui/SilentVoixApp.kt` uses `NavigationSuiteScaffold`
@@ -66,10 +71,10 @@ Android (`android/`):
   `SpeechController`, `SettingsRepository` (against a real DataStore file), `HistoryUiState`
   and history day labels: `./gradlew testDebugUnitTest`.
 
-The Gradle wrapper is committed under `android/` and the app builds. No Maven wrapper is committed
-and `mvn` is not on the PATH; generate it with `mvn wrapper:wrapper`.
+Both wrappers are committed (Gradle under `android/`, Maven 3.9.16 `mvnw` under `backend-java/`);
+neither `gradle` nor `mvn` needs to be on the PATH.
 
-## Commands (once wrappers exist)
+## Commands
 
 ```bash
 # Android
@@ -79,6 +84,7 @@ cd android
 
 # Backend (run from backend-java/ so .env is picked up)
 cd backend-java
+./mvnw test
 ./mvnw spring-boot:run
 curl http://localhost:8081/api/v1/health
 ```
