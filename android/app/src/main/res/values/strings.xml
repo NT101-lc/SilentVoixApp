@@ -12,7 +12,11 @@
     <!-- Shared -->
     <string name="demo_badge">DỮ LIỆU MẪU</string>
     <string name="action_replay">Đọc lại</string>
-    <string name="message_tts_unavailable">Đọc thành tiếng chưa được hỗ trợ trong bản demo.</string>
+
+    <!-- Speech (TextToSpeech) -->
+    <string name="speech_unavailable_no_engine">Thiết bị chưa có công cụ đọc văn bản (TTS). Hãy cài một công cụ như “Dịch vụ lời nói của Google”.</string>
+    <string name="speech_unavailable_language">Thiết bị chưa có giọng đọc tiếng Việt. Hãy tải dữ liệu giọng nói tiếng Việt.</string>
+    <string name="speech_failed">Không đọc được câu này. Hãy thử lại.</string>
 
     <!-- Backend status -->
     <string name="status_backend_label">MÁY CHỦ</string>
@@ -94,7 +98,11 @@
     <string name="settings_large_text_title">Chữ kết quả cỡ lớn</string>
     <string name="settings_large_text_summary">Hiển thị kết quả dịch với cỡ chữ lớn hơn.</string>
     <string name="settings_section_speech">GIỌNG ĐỌC</string>
-    <string name="settings_speech_notice">Đọc thành tiếng chưa hoạt động trong bản demo. Các tuỳ chọn dưới đây chỉ được lưu tạm thời.</string>
+    <string name="settings_speech_status_initializing">Đang khởi động giọng đọc…</string>
+    <string name="settings_speech_status_ready">Giọng đọc tiếng Việt đã sẵn sàng.</string>
+    <string name="settings_speech_preview">Nghe thử</string>
+    <string name="settings_speech_preview_text">Xin chào, đây là giọng đọc của SilentVoix.</string>
+    <string name="settings_speech_install_voice">Tải giọng tiếng Việt</string>
     <string name="settings_auto_speak_title">Tự động đọc kết quả</string>
     <string name="settings_auto_speak_summary">Đọc to mỗi kết quả mới.</string>
     <string name="settings_speech_rate">Tốc độ đọc: %1$s×</string>

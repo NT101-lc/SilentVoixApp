@@ -1,5 +1,8 @@
 package com.silentvoix.app.ui.settings
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.speech.tts.TextToSpeech
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,7 +22,10 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -29,7 +35,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -38,6 +49,9 @@ import androidx.compose.ui.unit.dp
 import com.silentvoix.app.BuildConfig
 import com.silentvoix.app.R
 import com.silentvoix.app.data.backend.BackendStatus
+import com.silentvoix.app.speech.SpeechRate
+import com.silentvoix.app.speech.SpeechStatus
+import com.silentvoix.app.speech.SpeechUnavailableReason
 import com.silentvoix.app.ui.common.ScreenHeader
 import com.silentvoix.app.ui.common.SectionLabel
 import com.silentvoix.app.ui.common.backendStatusText
@@ -54,6 +68,8 @@ fun SettingsScreen(
     settings: AppSettings,
     onSettingsChange: (AppSettings) -> Unit,
     backendStatus: BackendStatus,
+    speechStatus: SpeechStatus,
+    onPreviewSpeech: (String) -> Unit,
     contentPadding: PaddingValues,
 ) {
     // Feedback follows the current setting: switching haptics off stops buzzing immediately.
@@ -108,12 +124,15 @@ fun SettingsScreen(
             }
 
             SettingsGroup(title = stringResource(R.string.settings_section_speech)) {
-                Text(
-                    text = stringResource(R.string.settings_speech_notice),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 16.dp),
+                val previewText = stringResource(R.string.settings_speech_preview_text)
+                SpeechStatusRow(
+                    status = speechStatus,
+                    onPreview = {
+                        tap()
+                        onPreviewSpeech(previewText)
+                    },
                 )
+                RowDivider()
                 SwitchRow(
                     title = stringResource(R.string.settings_auto_speak_title),
                     summary = stringResource(R.string.settings_auto_speak_summary),
@@ -278,10 +297,66 @@ private fun SpeechRateSlider(rate: Float, onRateChange: (Float) -> Unit) {
         Slider(
             value = rate,
             onValueChange = onRateChange,
-            valueRange = 0.5f..2f,
+            valueRange = SpeechRate.MIN..SpeechRate.MAX,
             steps = 5,
             modifier = Modifier.semantics { contentDescription = label },
         )
+    }
+}
+
+/**
+ * Whether the device can speak Vietnamese, with a preview button once it can and a shortcut to
+ * the system's voice-data installer when the Vietnamese voice is missing.
+ */
+@Composable
+private fun SpeechStatusRow(status: SpeechStatus, onPreview: () -> Unit) {
+    val context = LocalContext.current
+    val statusText = stringResource(
+        when (status) {
+            SpeechStatus.Initializing -> R.string.settings_speech_status_initializing
+            SpeechStatus.Ready -> R.string.settings_speech_status_ready
+            is SpeechStatus.Unavailable -> when (status.reason) {
+                SpeechUnavailableReason.NO_ENGINE -> R.string.speech_unavailable_no_engine
+                SpeechUnavailableReason.LANGUAGE_MISSING -> R.string.speech_unavailable_language
+            }
+        },
+    )
+    Column(
+        modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = statusText,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (status is SpeechStatus.Unavailable) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+        when {
+            status == SpeechStatus.Ready -> FilledTonalButton(
+                onClick = onPreview,
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
+                Icon(ImageVector.vectorResource(R.drawable.ic_volume_up), contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.settings_speech_preview))
+            }
+            status == SpeechStatus.Unavailable(SpeechUnavailableReason.LANGUAGE_MISSING) -> OutlinedButton(
+                onClick = {
+                    try {
+                        context.startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
+                    } catch (_: ActivityNotFoundException) {
+                        // No installer on this device; the status text already explains the problem.
+                    }
+                },
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) {
+                Text(stringResource(R.string.settings_speech_install_voice))
+            }
+        }
     }
 }
 

@@ -30,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
@@ -37,6 +38,9 @@ import com.silentvoix.app.BuildConfig
 import com.silentvoix.app.R
 import com.silentvoix.app.data.backend.BackendHealthClient
 import com.silentvoix.app.data.backend.BackendStatus
+import com.silentvoix.app.speech.SpeakOutcome
+import com.silentvoix.app.speech.SpeechUnavailableReason
+import com.silentvoix.app.speech.rememberSpeech
 import com.silentvoix.app.ui.common.rememberHapticTap
 import com.silentvoix.app.ui.history.HistoryScreen
 import com.silentvoix.app.ui.settings.AppSettings
@@ -72,6 +76,28 @@ fun SilentVoixApp() {
             snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showSnackbar(message)
         }
+    }
+
+    val context = LocalContext.current
+    // Explains why nothing was heard; silent success needs no message.
+    val reportSpeakOutcome: (SpeakOutcome) -> Unit = { outcome ->
+        val messageRes = when (outcome) {
+            is SpeakOutcome.Unavailable -> when (outcome.reason) {
+                SpeechUnavailableReason.NO_ENGINE -> R.string.speech_unavailable_no_engine
+                SpeechUnavailableReason.LANGUAGE_MISSING -> R.string.speech_unavailable_language
+            }
+            SpeakOutcome.Failed -> R.string.speech_failed
+            SpeakOutcome.Spoken, SpeakOutcome.Queued -> null
+        }
+        messageRes?.let { showMessage(context.getString(it)) }
+    }
+    val speech = rememberSpeech(onDeferredOutcome = reportSpeakOutcome)
+    LaunchedEffect(settings.speechRate) { speech.setRate(settings.speechRate) }
+    // userInitiated: replay and preview report problems; auto-speak stays quiet so an unavailable
+    // voice does not raise a message on every recognised gesture.
+    val speak: (String, Boolean) -> Unit = { text, userInitiated ->
+        val outcome = speech.speak(text)
+        if (userInitiated) reportSpeakOutcome(outcome)
     }
 
     val layoutType = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
@@ -131,27 +157,30 @@ fun SilentVoixApp() {
                 contentWindowInsets = contentInsets,
                 modifier = Modifier,
             ) { contentPadding ->
-                // Keeps each tab's saveable state (e.g. a running demo) while switching tabs.
+                // Keeps each tab's saveable state (e.g. history filters) while switching tabs.
                 screenStateHolder.SaveableStateProvider(destination.name) {
                     when (destination) {
                         AppDestination.TRANSLATE -> TranslateScreen(
                             backendStatus = backendStatus,
                             onRetryBackend = retryHealthCheck,
                             largeResultText = settings.largeResultText,
+                            autoSpeak = settings.autoSpeak,
                             hapticsEnabled = settings.haptics,
-                            onShowMessage = showMessage,
+                            onSpeak = speak,
                             contentPadding = contentPadding,
                         )
                         AppDestination.HISTORY -> HistoryScreen(
                             onNavigateToTranslate = { destination = AppDestination.TRANSLATE },
                             hapticsEnabled = settings.haptics,
-                            onShowMessage = showMessage,
+                            onSpeak = { speak(it, true) },
                             contentPadding = contentPadding,
                         )
                         AppDestination.SETTINGS -> SettingsScreen(
                             settings = settings,
                             onSettingsChange = { settings = it },
                             backendStatus = backendStatus,
+                            speechStatus = speech.status,
+                            onPreviewSpeech = { speak(it, true) },
                             contentPadding = contentPadding,
                         )
                     }

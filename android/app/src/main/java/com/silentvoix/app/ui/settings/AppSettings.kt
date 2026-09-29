@@ -2,6 +2,7 @@ package com.silentvoix.app.ui.settings
 
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
+import com.silentvoix.app.speech.SpeechRate
 import com.silentvoix.app.ui.theme.ThemeMode
 
 /**
@@ -12,7 +13,7 @@ data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val largeResultText: Boolean = true,
     val autoSpeak: Boolean = false,
-    val speechRate: Float = 1.0f,
+    val speechRate: Float = SpeechRate.DEFAULT,
     val haptics: Boolean = true,
 ) {
     companion object {

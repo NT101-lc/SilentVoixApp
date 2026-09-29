@@ -25,6 +25,8 @@ data class TranslateSession(
     val status: SessionStatus = SessionStatus.Idle,
     val latest: Recognition? = null,
     val hasRunOnce: Boolean = false,
+    /** Bumped on every recognition, so repeating the same phrase still reads as a new result. */
+    val resultCount: Int = 0,
 ) {
     /** Whether the camera and model should be running. */
     val isRunning: Boolean
@@ -45,7 +47,11 @@ data class TranslateSession(
         if (status == SessionStatus.Starting) copy(status = SessionStatus.Listening) else this
 
     fun onRecognized(recognition: Recognition): TranslateSession =
-        if (status == SessionStatus.Listening) copy(latest = recognition) else this
+        if (status == SessionStatus.Listening) {
+            copy(latest = recognition, resultCount = resultCount + 1)
+        } else {
+            this
+        }
 
     fun onFailure(failure: RecognitionFailure): TranslateSession =
         if (isRunning) copy(status = SessionStatus.Failed(failure)) else this

@@ -85,4 +85,12 @@ class TranslateSessionTest {
 
         assertEquals(SessionStatus.Idle, session.status)
     }
+
+    @Test
+    fun `recognising the same phrase again still counts as a new result`() {
+        val once = listening.onRecognized(hello)
+        val twice = once.onRecognized(hello)
+
+        assertTrue(twice.resultCount > once.resultCount)
+    }
 }

@@ -50,6 +50,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,8 +95,10 @@ fun TranslateScreen(
     backendStatus: BackendStatus,
     onRetryBackend: () -> Unit,
     largeResultText: Boolean,
+    autoSpeak: Boolean,
     hapticsEnabled: Boolean,
-    onShowMessage: (String) -> Unit,
+    /** Speaks text; the flag is true when the user asked for it (replay), false for auto-speak. */
+    onSpeak: (text: String, userInitiated: Boolean) -> Unit,
     contentPadding: PaddingValues,
 ) {
     val context = LocalContext.current
@@ -105,11 +108,16 @@ fun TranslateScreen(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> session = session.onPermissionResult(granted) }
 
+    // Keyed on the count, not the text, so the same phrase recognised twice is spoken twice.
+    LaunchedEffect(session.resultCount) {
+        val latest = session.latest
+        if (autoSpeak && session.resultCount > 0 && latest != null) onSpeak(latest.text, false)
+    }
+
     val tap = rememberHapticTap(hapticsEnabled)
-    val ttsUnavailable = stringResource(R.string.message_tts_unavailable)
-    val onReplay = {
+    val onReplay: () -> Unit = {
         tap()
-        onShowMessage(ttsUnavailable)
+        session.latest?.let { onSpeak(it.text, true) }
     }
     val isActive = session.isRunning || session.status == SessionStatus.AwaitingPermission
     val onToggle = {

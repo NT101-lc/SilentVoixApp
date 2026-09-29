@@ -13,7 +13,7 @@ Native Android client for SilentVoix: gesture recognition in, spoken-language te
 | UI | Jetpack Compose, Material 3, `material3-adaptive-navigation-suite` | in use |
 | Backend calls | `HttpURLConnection` + `org.json` to `../backend-java/` | health check only |
 | Camera / inference | CameraX, MediaPipe Tasks (Gesture Recognizer) | in use, stock gesture model |
-| Speech output | Android `TextToSpeech` | planned |
+| Speech output | Android `TextToSpeech` (Vietnamese) | in use |
 
 ## Phase 1 UI
 
@@ -29,7 +29,9 @@ Native Android client for SilentVoix: gesture recognition in, spoken-language te
 ### Real vs demo
 
 Real: backend health check (`GET /api/v1/health`, including database readiness), theme switching, large
-result text, and gesture recognition (below).
+result text, gesture recognition (below), and speech: replay on Translate and History, auto-speak of
+new results, and speech rate (0.5×–2×) via Android `TextToSpeech` in Vietnamese. Settings shows whether
+a Vietnamese voice is available, with a preview button, or a shortcut to install the voice data.
 
 Recognition: CameraX streams frames to MediaPipe's pretrained Gesture Recognizer, on the device. It knows
 7 common hand gestures (open palm, thumb up/down, victory, pointing up, closed fist, "I love you"), which
@@ -42,7 +44,6 @@ fetches a pinned version into `build/generated/models` and checks its SHA-256, s
 network access.
 
 Demo only (clearly labelled in the UI):
-- Replay / speech: shows a message; TextToSpeech is not integrated. The speech settings have no effect yet.
 - History: fixed local sample entries; the empty and error states are previews.
 - Settings are held in memory only and reset when the app process ends.
 

@@ -66,7 +66,7 @@ private enum class HistoryFilter(@StringRes val labelRes: Int) {
 fun HistoryScreen(
     onNavigateToTranslate: () -> Unit,
     hapticsEnabled: Boolean,
-    onShowMessage: (String) -> Unit,
+    onSpeak: (String) -> Unit,
     contentPadding: PaddingValues,
 ) {
     var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
@@ -78,7 +78,6 @@ fun HistoryScreen(
     ) { mutableStateOf(DemoData.defaultFavoriteIds) }
 
     val tap = rememberHapticTap(hapticsEnabled)
-    val ttsUnavailable = stringResource(R.string.message_tts_unavailable)
 
     val entries = when (filter) {
         HistoryFilter.ALL -> DemoData.history
@@ -124,9 +123,9 @@ fun HistoryScreen(
                     tap()
                     favouriteIds = if (id in favouriteIds) favouriteIds - id else favouriteIds + id
                 },
-                onReplay = {
+                onReplay = { text ->
                     tap()
-                    onShowMessage(ttsUnavailable)
+                    onSpeak(text)
                 },
             )
         }
@@ -176,7 +175,7 @@ private fun HistoryList(
     entries: List<DemoHistoryEntry>,
     favouriteIds: Set<Int>,
     onToggleFavourite: (Int) -> Unit,
-    onReplay: () -> Unit,
+    onReplay: (String) -> Unit,
 ) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 340.dp),
@@ -205,7 +204,7 @@ private fun HistoryList(
                 entry = entry,
                 isFavourite = entry.id in favouriteIds,
                 onToggleFavourite = { onToggleFavourite(entry.id) },
-                onReplay = onReplay,
+                onReplay = { onReplay(entry.text) },
             )
         }
     }

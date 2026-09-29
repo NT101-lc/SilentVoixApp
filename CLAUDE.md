@@ -21,7 +21,7 @@ Two independent projects, each opened on its own (not from the repo root):
 The app talks only to the backend (REST; WebSocket planned). It must never connect to the
 database directly. The backend listens on `8081` (`PORT` overrides).
 
-Planned but not yet in any build file: Android `TextToSpeech`, Spring WebSocket. Add a dependency only when the code that uses it lands.
+Planned but not yet in any build file: Spring WebSocket. Add a dependency only when the code that uses it lands.
 
 ## Current state: Phase 1
 
@@ -47,10 +47,16 @@ Android (`android/`):
   debounces per-frame output; `TranslateSession` is the screen's state machine. The model is not
   committed: the `downloadGestureModel` Gradle task fetches it (pinned URL + SHA-256) into
   generated assets, so the first build needs network.
-- Demo only, and must stay visibly labelled as such (`DemoBadge`) until implemented: speech/replay,
-  history entries (`data/demo/DemoData`) and its empty/error states. Settings are in memory only.
-- Unit tests (JUnit 4, `app/src/test`) cover `GestureStabilizer` and `TranslateSession`:
-  `./gradlew testDebugUnitTest`.
+- Real: speech in `speech/`. `AndroidSpeechEngine` wraps `TextToSpeech` (Vietnamese, `vi-VN`);
+  `SpeechController` queues text until the engine is ready, clamps the rate to `SpeechRate`
+  bounds and reports why speech is unavailable; `rememberSpeech()` is app-scoped in
+  `SilentVoixApp` and released on dispose. Replay (Translate/History) and the Settings preview
+  show a snackbar when speech is unavailable; auto-speak stays silent. The manifest's `<queries>`
+  entry for `TTS_SERVICE` is required on Android 11+.
+- Demo only, and must stay visibly labelled as such (`DemoBadge`) until implemented: history
+  entries (`data/demo/DemoData`) and its empty/error states. Settings are in memory only.
+- Unit tests (JUnit 4, `app/src/test`) cover `GestureStabilizer`, `TranslateSession` and
+  `SpeechController`: `./gradlew testDebugUnitTest`.
 
 The Gradle wrapper is committed under `android/` and the app builds. No Maven wrapper is committed
 and `mvn` is not on the PATH; generate it with `mvn wrapper:wrapper`.
