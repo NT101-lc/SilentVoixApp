@@ -11,11 +11,12 @@
 
     <!-- Shared -->
     <string name="demo_badge">DỮ LIỆU MẪU</string>
+    <string name="demo_mode_badge">CHẾ ĐỘ DEMO</string>
     <string name="action_replay">Đọc lại</string>
     <string name="message_tts_unavailable">Đọc thành tiếng chưa được hỗ trợ trong bản demo.</string>
 
     <!-- Backend status -->
-    <string name="status_backend_label">Máy chủ</string>
+    <string name="status_backend_label">MÁY CHỦ</string>
     <string name="status_backend_checking">Đang kiểm tra kết nối…</string>
     <string name="status_backend_db_up">Đã kết nối · Cơ sở dữ liệu sẵn sàng</string>
     <string name="status_backend_db_down">Đã kết nối · Cơ sở dữ liệu không khả dụng</string>
@@ -24,50 +25,62 @@
     <string name="status_backend_unreachable">Không kết nối được máy chủ</string>
     <string name="status_backend_retry">Kiểm tra lại kết nối máy chủ</string>
 
-    <!-- Translate -->
-    <string name="translate_demo_notice">Bản demo: camera và nhận diện ký hiệu chưa được triển khai. Mọi kết quả trên màn hình này là dữ liệu mẫu.</string>
-    <string name="status_recognition_label">Nhận diện</string>
-    <string name="status_recognition_running">Đang chạy mô phỏng (demo)</string>
-    <string name="status_recognition_stopped">Đã dừng</string>
-    <string name="camera_placeholder_title">Xem trước camera</string>
-    <string name="camera_placeholder_body">Camera chưa được bật trong phiên bản này.</string>
-    <string name="camera_placeholder_simulating">ĐANG MÔ PHỎNG</string>
+    <!-- Translate: capture stage -->
+    <string name="stage_idle_title">Đưa bàn tay vào khung</string>
+    <string name="stage_idle_body">Camera chưa được bật trong phiên bản này. Khung hình bên dưới là hình minh hoạ.</string>
+    <string name="stage_active_title">Đang đọc cử chỉ</string>
+    <string name="stage_active_body">Giữ bàn tay trong khung. Kết quả hiện ra là câu mẫu có sẵn.</string>
+    <string name="stage_live">ĐANG MÔ PHỎNG</string>
     <string name="action_start_demo">Bắt đầu mô phỏng</string>
     <string name="action_stop_demo">Dừng mô phỏng</string>
-    <string name="result_title">Kết quả</string>
-    <string name="result_empty">Nhấn “Bắt đầu mô phỏng” để xem kết quả mẫu.</string>
+
+    <!-- Translate: result -->
+    <string name="result_title">KẾT QUẢ</string>
+    <string name="result_idle_title">Chưa có kết quả</string>
+    <string name="result_idle_body">Nhấn “Bắt đầu mô phỏng” để xem một câu mẫu.</string>
+    <string name="result_waiting">Đang đọc cử chỉ…</string>
+    <string name="result_none_title">Không nhận được câu nào</string>
+    <string name="result_none_body">Phiên mô phỏng đã dừng trước khi có kết quả. Hãy thử lại.</string>
     <string name="result_content_description">Kết quả mẫu: %1$s</string>
     <string name="result_confidence">Độ tin cậy (mẫu): %1$d%%</string>
 
     <!-- History -->
-    <string name="history_state_selector_label">Xem trước trạng thái (demo)</string>
-    <string name="history_state_content">Có dữ liệu</string>
-    <string name="history_state_empty">Trống</string>
-    <string name="history_state_error">Lỗi</string>
+    <string name="history_eyebrow">CÂU ĐÃ DỊCH</string>
+    <string name="history_filter_all">Tất cả</string>
+    <string name="history_filter_today">Hôm nay</string>
+    <string name="history_filter_favourites">Yêu thích</string>
     <string name="history_demo_note">Dữ liệu mẫu lưu trên máy, chưa đồng bộ với máy chủ.</string>
-    <string name="history_item_meta">%1$s · Độ tin cậy (mẫu) %2$d%%</string>
+    <string name="history_item_confidence">Độ tin cậy (mẫu) %1$d%%</string>
     <string name="history_replay_description">Đọc lại: %1$s</string>
+    <string name="history_favourite_description">Thêm vào yêu thích: %1$s</string>
+    <string name="history_unfavourite_description">Bỏ khỏi yêu thích: %1$s</string>
     <string name="history_empty_title">Chưa có lịch sử</string>
     <string name="history_empty_body">Các câu được dịch sẽ xuất hiện ở đây.</string>
     <string name="history_empty_action">Bắt đầu dịch</string>
-    <string name="history_error_title">Không tải được lịch sử</string>
-    <string name="history_error_body">Đây là trạng thái lỗi mẫu. Hãy kiểm tra kết nối và thử lại.</string>
-    <string name="history_error_action">Thử lại</string>
+    <string name="history_empty_today_title">Hôm nay chưa có câu nào</string>
+    <string name="history_empty_today_body">Chưa có câu nào được dịch trong hôm nay.</string>
+    <string name="history_empty_favourites_title">Chưa có mục yêu thích</string>
+    <string name="history_empty_favourites_body">Nhấn biểu tượng trái tim trên một câu để lưu lại đây.</string>
+    <string name="history_empty_show_all">Xem tất cả</string>
 
     <!-- Settings -->
-    <string name="settings_section_appearance">Giao diện</string>
+    <string name="settings_eyebrow">TUỲ CHỈNH</string>
+    <string name="settings_section_appearance">GIAO DIỆN</string>
     <string name="settings_theme_label">Chủ đề</string>
-    <string name="settings_theme_system">Theo hệ thống</string>
+    <string name="settings_theme_system">Hệ thống</string>
     <string name="settings_theme_light">Sáng</string>
     <string name="settings_theme_dark">Tối</string>
     <string name="settings_large_text_title">Chữ kết quả cỡ lớn</string>
     <string name="settings_large_text_summary">Hiển thị kết quả dịch với cỡ chữ lớn hơn.</string>
-    <string name="settings_section_speech">Giọng đọc</string>
+    <string name="settings_section_speech">GIỌNG ĐỌC</string>
     <string name="settings_speech_notice">Đọc thành tiếng chưa hoạt động trong bản demo. Các tuỳ chọn dưới đây chỉ được lưu tạm thời.</string>
     <string name="settings_auto_speak_title">Tự động đọc kết quả</string>
     <string name="settings_auto_speak_summary">Đọc to mỗi kết quả mới.</string>
     <string name="settings_speech_rate">Tốc độ đọc: %1$s×</string>
-    <string name="settings_section_about">Thông tin ứng dụng</string>
+    <string name="settings_section_feedback">PHẢN HỒI</string>
+    <string name="settings_haptics_title">Rung phản hồi</string>
+    <string name="settings_haptics_summary">Rung nhẹ khi chạm vào nút và thẻ.</string>
+    <string name="settings_section_about">THÔNG TIN ỨNG DỤNG</string>
     <string name="settings_about_version">Phiên bản</string>
     <string name="settings_about_backend">Địa chỉ máy chủ</string>
     <string name="settings_about_backend_status">Trạng thái máy chủ</string>

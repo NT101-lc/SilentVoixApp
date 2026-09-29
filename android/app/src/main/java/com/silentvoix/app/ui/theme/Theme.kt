@@ -36,6 +36,7 @@ fun SilentVoixTheme(
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
         typography = SilentVoixTypography,
+        shapes = SilentVoixShapes,
         content = content,
     )
 }
