@@ -93,4 +93,13 @@ class TranslateSessionTest {
 
         assertTrue(twice.resultCount > once.resultCount)
     }
+
+    @Test
+    fun `the transcript keeps this session's phrases in order and a new session starts empty`() {
+        val thanks = Recognition("Đồng ý", 90)
+        val session = listening.onRecognized(hello).onRecognized(thanks)
+
+        assertEquals(listOf(hello, thanks), session.transcript)
+        assertTrue(session.onStopRequested().onStartRequested(hasCameraPermission = true).transcript.isEmpty())
+    }
 }

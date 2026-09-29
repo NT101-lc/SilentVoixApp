@@ -80,9 +80,26 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        // Robolectric screenshot rendering needs the merged resources.
+        unitTests.isIncludeAndroidResources = true
+    }
+
     androidResources {
         // MediaPipe memory-maps the model, which fails on compressed assets.
         noCompress += "task"
+    }
+}
+
+// Screenshot tests under src/test/.../screenshots render screens to PNG for design review. They are
+// excluded from normal test runs (and CI); render them with: ./gradlew testDebugUnitTest -Pscreenshots
+// Images land in app/build/outputs/roborazzi/.
+tasks.withType<Test>().configureEach {
+    if (providers.gradleProperty("screenshots").isPresent) {
+        systemProperty("roborazzi.test.record", "true")
+        filter.includeTestsMatching("com.silentvoix.app.screenshots.*")
+    } else {
+        exclude("**/screenshots/**")
     }
 }
 
@@ -105,4 +122,10 @@ dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     testImplementation(libs.junit)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

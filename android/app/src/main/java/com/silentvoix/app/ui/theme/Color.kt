@@ -37,6 +37,7 @@ internal val LightColors = lightColorScheme(
     inverseOnSurface = Color(0xFFECF0F6),
     inversePrimary = Color(0xFF5FE3C8),
     scrim = Color(0xFF000000),
+    surfaceBright = Color(0xFFFFFFFF),
     surfaceContainerLowest = Color(0xFFFFFFFF),
     surfaceContainerLow = Color(0xFFF2EFE8),
     surfaceContainer = Color(0xFFEDE8DF),
@@ -61,9 +62,9 @@ internal val DarkColors = darkColorScheme(
     onError = Color(0xFF690005),
     errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD7),
-    background = Color(0xFF0A0F1A),
+    background = Color(0xFF0E1522),
     onBackground = Color(0xFFE7EBF2),
-    surface = Color(0xFF0A0F1A),
+    surface = Color(0xFF0E1522),
     onSurface = Color(0xFFE7EBF2),
     surfaceVariant = Color(0xFF3E4756),
     onSurfaceVariant = Color(0xFFB2BCCB),
@@ -73,11 +74,12 @@ internal val DarkColors = darkColorScheme(
     inverseOnSurface = Color(0xFF1A202B),
     inversePrimary = Color(0xFF0A6255),
     scrim = Color(0xFF000000),
-    surfaceContainerLowest = Color(0xFF060A12),
-    surfaceContainerLow = Color(0xFF0F1622),
-    surfaceContainer = Color(0xFF141C29),
-    surfaceContainerHigh = Color(0xFF1C2532),
-    surfaceContainerHighest = Color(0xFF25303F),
+    surfaceBright = Color(0xFF344156),
+    surfaceContainerLowest = Color(0xFF090E17),
+    surfaceContainerLow = Color(0xFF151D2B),
+    surfaceContainer = Color(0xFF1A2331),
+    surfaceContainerHigh = Color(0xFF212B3A),
+    surfaceContainerHighest = Color(0xFF2A3545),
 )
 
 /**
@@ -85,10 +87,16 @@ internal val DarkColors = darkColorScheme(
  * reads as the focus of the app rather than as another surface.
  */
 object StagePalette {
-    val Ink = Color(0xFF0A0F1A)
-    val InkEdge = Color(0xFF16202F)
+    val Ink = Color(0xFF070B13)
+    /** Hairline around the stage so it separates from a dark page. */
+    val InkEdge = Color(0xFF223047)
+    /** Bottom scrim behind live captions, over the camera image. */
+    val CaptionScrim = Color(0xE6070B13)
     val Guide = Color(0xFF5FE3C8)
     val GuideIdle = Color(0xFF64748B)
     val OnInk = Color(0xFFE7EBF2)
     val OnInkMuted = Color(0xFF94A3B8)
+    /** Error tone on ink (camera/permission failures); 7.9:1 on [Ink]. */
+    val Error = Color(0xFFFFB4AB)
+    val ErrorSoft = Color(0x33FF8A80)
 }

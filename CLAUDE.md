@@ -65,6 +65,15 @@ Android (`android/`):
   backend. `HistoryUiState` (loading/error/loaded) is derived from the Room flow. Room schemas
   are exported to `android/app/schemas/` and committed: bump the version and add a migration
   when the entity changes.
+- UI: Be Vietnam Pro (OFL, `res/font`, licence in `assets/licenses`) for all type. Translate is
+  `TranslateScreen` (stateful: session, permission, camera) over a stateless `TranslateContent`
+  with a `camera` slot; live captions sit inside the camera stage, controls are a camera-style
+  bar (replay / start-stop / auto-speak), and a full-screen caption view is for showing the other
+  person. `HistoryContent` is the stateless History screen (day-grouped rows). Shared pieces:
+  `ui/common/ScreenHeader`, `SegmentedControl`. Server status lives in Settings, not on Translate.
+- Screenshot renders (design review, not regression tests): `app/src/test/.../screenshots/`,
+  Roborazzi + Robolectric (SDK 35), excluded from normal runs and CI. Render with
+  `./gradlew testDebugUnitTest -Pscreenshots`; PNGs land in `app/build/outputs/roborazzi/`.
 - Nothing is demo-only any more; no demo data or `DemoBadge` remains. If a placeholder is ever
   needed again, label it visibly in the UI.
 - Unit tests (JUnit 4, `app/src/test`) cover `GestureStabilizer`, `TranslateSession`,

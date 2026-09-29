@@ -11,3 +11,8 @@
 .env
 .env.*
 !.env.example
+
+# Local design renders (regenerate with ./gradlew testDebugUnitTest -Pscreenshots)
+design/before/
+design/after/
+design/comparison_small.png

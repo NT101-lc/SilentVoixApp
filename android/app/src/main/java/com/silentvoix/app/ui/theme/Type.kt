@@ -2,48 +2,53 @@ package com.silentvoix.app.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.silentvoix.app.R
 
 /**
- * Tighter, heavier headlines against roomy body text: the screens lean on type rather than on
- * borders and cards for structure. Body and label sizes stay above the Material defaults so the
- * Vietnamese copy is comfortable to read at arm's length.
+ * Be Vietnam Pro (SIL OFL, licence in assets/licenses): drawn for Vietnamese, so stacked
+ * diacritics (ệ, ẫ, ở) keep their shape and spacing instead of being squeezed into Latin metrics.
  */
-internal val SilentVoixTypography = Typography().let { base ->
-    base.copy(
-        displayMedium = base.displayMedium.copy(
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-1).sp,
-        ),
-        displaySmall = base.displaySmall.copy(
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.5).sp,
-        ),
-        headlineLarge = base.headlineLarge.copy(
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.5).sp,
-        ),
-        headlineMedium = base.headlineMedium.copy(
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.4).sp,
-        ),
-        headlineSmall = base.headlineSmall.copy(
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = (-0.2).sp,
-        ),
-        titleLarge = base.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-        titleMedium = base.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-        bodyLarge = base.bodyLarge.copy(fontSize = 17.sp, lineHeight = 26.sp),
-        bodyMedium = base.bodyMedium.copy(fontSize = 15.sp, lineHeight = 23.sp),
-        labelLarge = base.labelLarge.copy(fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold),
-    )
-}
+val BeVietnamPro = FontFamily(
+    Font(R.font.be_vietnam_pro_regular, FontWeight.Normal),
+    Font(R.font.be_vietnam_pro_medium, FontWeight.Medium),
+    Font(R.font.be_vietnam_pro_semibold, FontWeight.SemiBold),
+    Font(R.font.be_vietnam_pro_bold, FontWeight.Bold),
+)
+
+private fun style(size: Int, line: Int, weight: FontWeight, tracking: Double = 0.0) = TextStyle(
+    fontFamily = BeVietnamPro,
+    fontSize = size.sp,
+    lineHeight = line.sp,
+    fontWeight = weight,
+    letterSpacing = tracking.sp,
+)
+
+/**
+ * Heavy, tight headlines against roomy body text: structure comes from type, not borders. Line
+ * heights are generous because Vietnamese stacks marks above and below the x-height; body sizes sit
+ * above the Material defaults so the copy reads at arm's length.
+ */
+internal val SilentVoixTypography = Typography(
+    displayLarge = style(52, 62, FontWeight.Bold, -1.2),
+    displayMedium = style(42, 52, FontWeight.Bold, -1.0),
+    displaySmall = style(34, 44, FontWeight.Bold, -0.6),
+    headlineLarge = style(30, 40, FontWeight.Bold, -0.6),
+    headlineMedium = style(26, 36, FontWeight.Bold, -0.4),
+    headlineSmall = style(22, 32, FontWeight.SemiBold, -0.2),
+    titleLarge = style(20, 30, FontWeight.SemiBold, -0.1),
+    titleMedium = style(17, 26, FontWeight.SemiBold),
+    titleSmall = style(15, 22, FontWeight.SemiBold),
+    bodyLarge = style(17, 27, FontWeight.Normal),
+    bodyMedium = style(15, 23, FontWeight.Normal),
+    bodySmall = style(13, 19, FontWeight.Normal),
+    labelLarge = style(15, 21, FontWeight.SemiBold),
+    labelMedium = style(13, 18, FontWeight.Medium),
+    labelSmall = style(12, 16, FontWeight.Medium),
+)
 
 /** Small all-caps eyebrow used above section content. */
-internal val EyebrowStyle = TextStyle(
-    fontSize = 12.sp,
-    lineHeight = 16.sp,
-    fontWeight = FontWeight.Bold,
-    letterSpacing = 1.4.sp,
-)
+internal val EyebrowStyle = style(12, 16, FontWeight.Bold, 1.2)

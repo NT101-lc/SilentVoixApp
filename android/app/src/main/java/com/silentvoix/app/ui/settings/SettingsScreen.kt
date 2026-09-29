@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -22,12 +23,18 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -54,6 +61,8 @@ import com.silentvoix.app.speech.SpeechStatus
 import com.silentvoix.app.speech.SpeechUnavailableReason
 import com.silentvoix.app.ui.common.ScreenHeader
 import com.silentvoix.app.ui.common.SectionLabel
+import com.silentvoix.app.ui.common.SegmentedControl
+import com.silentvoix.app.ui.common.backendStatusColor
 import com.silentvoix.app.ui.common.backendStatusText
 import com.silentvoix.app.ui.common.rememberHapticTap
 import com.silentvoix.app.ui.theme.EyebrowStyle
@@ -68,6 +77,7 @@ fun SettingsScreen(
     settings: AppSettings,
     onSettingsChange: (AppSettings) -> Unit,
     backendStatus: BackendStatus,
+    onRetryBackend: () -> Unit,
     speechStatus: SpeechStatus,
     onPreviewSpeech: (String) -> Unit,
     contentPadding: PaddingValues,
@@ -89,10 +99,7 @@ fun SettingsScreen(
                 .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            ScreenHeader(
-                eyebrow = stringResource(R.string.settings_eyebrow),
-                title = stringResource(R.string.title_settings),
-            )
+            ScreenHeader(title = stringResource(R.string.title_settings))
 
             SettingsGroup(title = stringResource(R.string.settings_section_appearance)) {
                 Column(
@@ -103,12 +110,23 @@ fun SettingsScreen(
                         text = stringResource(R.string.settings_theme_label),
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    ThemeModeSelector(
+                    SegmentedControl(
+                        options = ThemeMode.entries,
                         selected = settings.themeMode,
+                        label = { mode ->
+                            stringResource(
+                                when (mode) {
+                                    ThemeMode.SYSTEM -> R.string.settings_theme_system
+                                    ThemeMode.LIGHT -> R.string.settings_theme_light
+                                    ThemeMode.DARK -> R.string.settings_theme_dark
+                                },
+                            )
+                        },
                         onSelect = {
                             tap()
                             onSettingsChange(settings.copy(themeMode = it))
                         },
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 RowDivider()
@@ -167,9 +185,12 @@ fun SettingsScreen(
                 RowDivider()
                 InfoRow(stringResource(R.string.settings_about_backend), BuildConfig.BACKEND_BASE_URL)
                 RowDivider()
-                InfoRow(
-                    stringResource(R.string.settings_about_backend_status),
-                    backendStatusText(backendStatus),
+                BackendStatusRow(
+                    status = backendStatus,
+                    onRetry = {
+                        tap()
+                        onRetryBackend()
+                    },
                 )
                 RowDivider()
                 InfoRow(
@@ -202,56 +223,6 @@ private fun RowDivider() {
         modifier = Modifier.padding(horizontal = 18.dp),
         color = MaterialTheme.colorScheme.outlineVariant,
     )
-}
-
-/** Three-way segmented control. Each segment is a radio in the accessibility tree. */
-@Composable
-private fun ThemeModeSelector(selected: ThemeMode, onSelect: (ThemeMode) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(4.dp)
-            .selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        ThemeMode.entries.forEach { mode ->
-            val isSelected = mode == selected
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    )
-                    .selectable(
-                        selected = isSelected,
-                        onClick = { onSelect(mode) },
-                        role = Role.RadioButton,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = stringResource(
-                        when (mode) {
-                            ThemeMode.SYSTEM -> R.string.settings_theme_system
-                            ThemeMode.LIGHT -> R.string.settings_theme_light
-                            ThemeMode.DARK -> R.string.settings_theme_dark
-                        },
-                    ),
-                    style = MaterialTheme.typography.labelLarge,
-                    textAlign = TextAlign.Center,
-                    color = if (isSelected) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -287,20 +258,52 @@ private fun SwitchRow(
 
 @Composable
 private fun SpeechRateSlider(rate: Float, onRateChange: (Float) -> Unit) {
-    val label = stringResource(R.string.settings_speech_rate, String.format(VietnameseLocale, "%.2f", rate))
+    val value = String.format(VietnameseLocale, "%.2f", rate).trimEnd('0').trimEnd(',')
+    val description = stringResource(R.string.settings_speech_rate, value)
     Column(
-        modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(text = label, style = MaterialTheme.typography.bodyLarge)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.settings_speech_rate_title),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
+            )
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                Text(
+                    text = "$value×",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+            }
+        }
         // 0.5× to 2.0× in steps of 0.25.
         Slider(
             value = rate,
             onValueChange = onRateChange,
             valueRange = SpeechRate.MIN..SpeechRate.MAX,
             steps = 5,
-            modifier = Modifier.semantics { contentDescription = label },
+            colors = SliderDefaults.colors(
+                inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                inactiveTickColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+            modifier = Modifier.semantics { contentDescription = description },
         )
+        Row {
+            Text(
+                text = stringResource(R.string.settings_speech_rate_slow),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = stringResource(R.string.settings_speech_rate_fast),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -321,24 +324,44 @@ private fun SpeechStatusRow(status: SpeechStatus, onPreview: () -> Unit) {
             }
         },
     )
+    val dot = when (status) {
+        SpeechStatus.Ready -> MaterialTheme.colorScheme.primary
+        SpeechStatus.Initializing -> MaterialTheme.colorScheme.outline
+        is SpeechStatus.Unavailable -> MaterialTheme.colorScheme.error
+    }
     Column(
         modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(
-            text = statusText,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (status is SpeechStatus.Unavailable) {
-                MaterialTheme.colorScheme.error
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-        )
+        Row(
+            modifier = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier
+                    .padding(top = 8.dp)
+                    .size(9.dp)
+                    .clip(CircleShape)
+                    .background(dot),
+            )
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (status is SpeechStatus.Unavailable) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+        }
         when {
             status == SpeechStatus.Ready -> FilledTonalButton(
                 onClick = onPreview,
                 modifier = Modifier.heightIn(min = 48.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ),
             ) {
                 Icon(ImageVector.vectorResource(R.drawable.ic_volume_up), contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -355,6 +378,55 @@ private fun SpeechStatusRow(status: SpeechStatus, onPreview: () -> Unit) {
                 modifier = Modifier.heightIn(min = 48.dp),
             ) {
                 Text(stringResource(R.string.settings_speech_install_voice))
+            }
+        }
+    }
+}
+
+/** Server reachability with a manual re-check; the dot is decorative, the text says it all. */
+@Composable
+private fun BackendStatusRow(status: BackendStatus, onRetry: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .padding(start = 18.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_about_backend_status).uppercase(),
+                style = EyebrowStyle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(backendStatusColor(status)),
+                )
+                Text(text = backendStatusText(status), style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+        if (status is BackendStatus.Checking) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .padding(14.dp)
+                    .size(20.dp),
+                strokeWidth = 2.5.dp,
+            )
+        } else {
+            IconButton(onClick = onRetry) {
+                Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.status_backend_retry))
             }
         }
     }

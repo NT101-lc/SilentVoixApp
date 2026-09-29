@@ -3,7 +3,6 @@ package com.silentvoix.app.ui.history
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -17,41 +16,43 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.silentvoix.app.R
 import com.silentvoix.app.data.history.EntryDay
 import com.silentvoix.app.data.history.HistoryEntry
@@ -60,13 +61,14 @@ import com.silentvoix.app.data.history.HistoryUiState
 import com.silentvoix.app.data.history.asHistoryUiState
 import com.silentvoix.app.data.history.entryDay
 import com.silentvoix.app.ui.common.ScreenHeader
+import com.silentvoix.app.ui.common.SectionLabel
+import com.silentvoix.app.ui.common.SegmentedControl
 import com.silentvoix.app.ui.common.rememberHapticTap
-import com.silentvoix.app.ui.theme.EyebrowStyle
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private enum class HistoryFilter(@StringRes val labelRes: Int) {
+internal enum class HistoryFilter(@StringRes val labelRes: Int) {
     ALL(R.string.history_filter_all),
     TODAY(R.string.history_filter_today),
     FAVOURITES(R.string.history_filter_favourites),
@@ -74,6 +76,7 @@ private enum class HistoryFilter(@StringRes val labelRes: Int) {
 
 private val TimeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 private val DateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+private val ContentMaxWidth = 720.dp
 
 @Composable
 fun HistoryScreen(
@@ -90,115 +93,122 @@ fun HistoryScreen(
     val state by remember(historyRepository, loadAttempt) {
         historyRepository.entries.asHistoryUiState()
     }.collectAsStateWithLifecycle(initialValue = HistoryUiState.Loading)
-
     val tap = rememberHapticTap(hapticsEnabled)
-    val nowMillis = System.currentTimeMillis()
-    val zone = ZoneId.systemDefault()
 
+    HistoryContent(
+        state = state,
+        filter = filter,
+        onFilterChange = {
+            tap()
+            filter = it
+        },
+        nowMillis = System.currentTimeMillis(),
+        zone = ZoneId.systemDefault(),
+        onToggleFavourite = {
+            tap()
+            onToggleFavourite(it)
+        },
+        onReplay = {
+            tap()
+            onSpeak(it)
+        },
+        onRetry = {
+            tap()
+            loadAttempt++
+        },
+        onNavigateToTranslate = {
+            tap()
+            onNavigateToTranslate()
+        },
+        contentPadding = contentPadding,
+    )
+}
+
+/** Stateless History screen; [nowMillis] and [zone] decide "today" so screenshots are stable. */
+@Composable
+internal fun HistoryContent(
+    state: HistoryUiState,
+    filter: HistoryFilter,
+    onFilterChange: (HistoryFilter) -> Unit,
+    nowMillis: Long,
+    zone: ZoneId,
+    onToggleFavourite: (HistoryEntry) -> Unit,
+    onReplay: (String) -> Unit,
+    onRetry: () -> Unit,
+    onNavigateToTranslate: () -> Unit,
+    contentPadding: PaddingValues,
+) {
+    val total = (state as? HistoryUiState.Loaded)?.entries?.size
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(contentPadding),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier
+                .widthIn(max = ContentMaxWidth)
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             ScreenHeader(
-                eyebrow = stringResource(R.string.history_eyebrow),
                 title = stringResource(R.string.title_history),
+                supporting = if (total != null && total > 0) {
+                    stringResource(R.string.history_summary, total)
+                } else {
+                    stringResource(R.string.history_local_note)
+                },
             )
-            FilterRow(
+            SegmentedControl(
+                options = HistoryFilter.entries,
                 selected = filter,
-                onSelect = {
-                    tap()
-                    filter = it
-                },
+                label = { stringResource(it.labelRes) },
+                onSelect = onFilterChange,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
 
-        when (val current = state) {
-            HistoryUiState.Loading -> LoadingState()
-            HistoryUiState.Error -> ErrorState(
-                onRetry = {
-                    tap()
-                    loadAttempt++
-                },
-            )
-            is HistoryUiState.Loaded -> {
-                val entries = when (filter) {
-                    HistoryFilter.ALL -> current.entries
-                    HistoryFilter.TODAY -> current.entries.filter {
-                        entryDay(it.createdAtMillis, nowMillis, zone) == EntryDay.Today
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .widthIn(max = ContentMaxWidth)
+                .fillMaxWidth(),
+        ) {
+            when (state) {
+                HistoryUiState.Loading -> LoadingState()
+                HistoryUiState.Error -> MessageState(
+                    iconRes = R.drawable.ic_history,
+                    title = stringResource(R.string.history_error_title),
+                    body = stringResource(R.string.history_error_body),
+                    action = stringResource(R.string.history_error_retry),
+                    onAction = onRetry,
+                )
+                is HistoryUiState.Loaded -> {
+                    val entries = when (filter) {
+                        HistoryFilter.ALL -> state.entries
+                        HistoryFilter.TODAY -> state.entries.filter {
+                            entryDay(it.createdAtMillis, nowMillis, zone) == EntryDay.Today
+                        }
+                        HistoryFilter.FAVOURITES -> state.entries.filter { it.isFavourite }
                     }
-                    HistoryFilter.FAVOURITES -> current.entries.filter { it.isFavourite }
-                }
-                if (entries.isEmpty()) {
-                    EmptyState(
-                        filter = filter,
-                        onPrimaryAction = {
-                            tap()
-                            if (filter == HistoryFilter.ALL) onNavigateToTranslate() else filter = HistoryFilter.ALL
-                        },
-                    )
-                } else {
-                    HistoryList(
-                        entries = entries,
-                        nowMillis = nowMillis,
-                        zone = zone,
-                        onToggleFavourite = { entry ->
-                            tap()
-                            onToggleFavourite(entry)
-                        },
-                        onReplay = { text ->
-                            tap()
-                            onSpeak(text)
-                        },
-                    )
+                    if (entries.isEmpty()) {
+                        EmptyState(
+                            filter = filter,
+                            onPrimaryAction = {
+                                if (filter == HistoryFilter.ALL) onNavigateToTranslate() else onFilterChange(HistoryFilter.ALL)
+                            },
+                        )
+                    } else {
+                        HistoryList(entries, nowMillis, zone, onToggleFavourite, onReplay)
+                    }
                 }
             }
         }
     }
 }
 
-/** Segmented-looking filter row; each chip is a plain toggle with a 48 dp touch target. */
-@Composable
-private fun FilterRow(selected: HistoryFilter, onSelect: (HistoryFilter) -> Unit) {
-    Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        HistoryFilter.entries.forEach { option ->
-            val isSelected = option == selected
-            Surface(
-                onClick = { onSelect(option) },
-                shape = CircleShape,
-                color = if (isSelected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainerHigh
-                },
-                contentColor = if (isSelected) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                modifier = Modifier.heightIn(min = 48.dp),
-            ) {
-                Box(
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = stringResource(option.labelRes),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                }
-            }
-        }
-    }
-}
-
+/** Entries grouped under one heading per day, each day one rounded card of rows. */
 @Composable
 private fun HistoryList(
     entries: List<HistoryEntry>,
@@ -207,31 +217,43 @@ private fun HistoryList(
     onToggleFavourite: (HistoryEntry) -> Unit,
     onReplay: (String) -> Unit,
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 340.dp),
+    // Entries arrive newest first, so grouping keeps days in order.
+    val days = entries.groupBy { entryDay(it.createdAtMillis, nowMillis, zone) }
+    LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Text(
-                text = stringResource(R.string.history_local_note),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 4.dp),
-            )
-        }
-        items(entries, key = { it.id }) { entry ->
-            HistoryItem(
-                entry = entry,
-                dayLabel = dayLabel(entryDay(entry.createdAtMillis, nowMillis, zone)),
-                timeLabel = Instant.ofEpochMilli(entry.createdAtMillis).atZone(zone).format(TimeFormat),
-                onToggleFavourite = { onToggleFavourite(entry) },
-                onReplay = { onReplay(entry.text) },
-            )
+        days.forEach { (day, dayEntries) ->
+            item(key = "header-$day") {
+                SectionLabel(
+                    text = dayLabel(day),
+                    modifier = Modifier.padding(start = 4.dp, top = 14.dp, bottom = 10.dp),
+                )
+            }
+            itemsIndexed(dayEntries, key = { _, entry -> entry.id }) { index, entry ->
+                HistoryRow(
+                    entry = entry,
+                    timeLabel = Instant.ofEpochMilli(entry.createdAtMillis).atZone(zone).format(TimeFormat),
+                    shape = groupShape(index, dayEntries.size),
+                    showDivider = index < dayEntries.lastIndex,
+                    onToggleFavourite = { onToggleFavourite(entry) },
+                    onReplay = { onReplay(entry.text) },
+                )
+            }
         }
     }
+}
+
+/** Rounds only the outer corners, so consecutive rows read as one card. */
+private fun groupShape(index: Int, count: Int): Shape {
+    val outer = 22.dp
+    val inner = 4.dp
+    return RoundedCornerShape(
+        topStart = if (index == 0) outer else inner,
+        topEnd = if (index == 0) outer else inner,
+        bottomStart = if (index == count - 1) outer else inner,
+        bottomEnd = if (index == count - 1) outer else inner,
+    )
 }
 
 @Composable
@@ -242,59 +264,42 @@ private fun dayLabel(day: EntryDay): String = when (day) {
 }
 
 @Composable
-private fun HistoryItem(
+private fun HistoryRow(
     entry: HistoryEntry,
-    dayLabel: String,
     timeLabel: String,
+    shape: Shape,
+    showDivider: Boolean,
     onToggleFavourite: () -> Unit,
     onReplay: () -> Unit,
 ) {
-    val isFavourite = entry.isFavourite
     val replayDescription = stringResource(R.string.history_replay_description, entry.text)
     val favouriteDescription = stringResource(
-        if (isFavourite) R.string.history_unfavourite_description else R.string.history_favourite_description,
+        if (entry.isFavourite) R.string.history_unfavourite_description else R.string.history_favourite_description,
         entry.text,
     )
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
+        shape = shape,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
-        Column(modifier = Modifier.padding(start = 18.dp, top = 16.dp, end = 8.dp, bottom = 8.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .heightIn(min = 76.dp)
+                    .padding(start = 18.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(end = 8.dp, bottom = 4.dp)
                         .semantics(mergeDescendants = true) {},
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = dayLabel.uppercase(),
-                            style = EyebrowStyle,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Box(
-                            Modifier
-                                .size(3.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.outlineVariant),
-                        )
-                        Text(
-                            text = timeLabel,
-                            style = EyebrowStyle,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                     Text(text = entry.text, style = MaterialTheme.typography.titleLarge)
                     Text(
-                        text = stringResource(R.string.history_item_confidence, entry.confidencePercent),
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = stringResource(R.string.history_item_meta, timeLabel, entry.confidencePercent),
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -304,30 +309,22 @@ private fun HistoryItem(
                 ) {
                     Icon(
                         imageVector = ImageVector.vectorResource(
-                            if (isFavourite) R.drawable.ic_favorite else R.drawable.ic_favorite_border,
+                            if (entry.isFavourite) R.drawable.ic_favorite else R.drawable.ic_favorite_border,
                         ),
                         contentDescription = null,
-                        tint = if (isFavourite) {
+                        tint = if (entry.isFavourite) {
                             MaterialTheme.colorScheme.primary
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         },
                     )
                 }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                Button(
+                FilledTonalIconButton(
                     onClick = onReplay,
-                    modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .semantics { contentDescription = replayDescription },
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.semantics { contentDescription = replayDescription },
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
                 ) {
                     Icon(
@@ -335,9 +332,13 @@ private fun HistoryItem(
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.action_replay))
                 }
+            }
+            if (showDivider) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 18.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                )
             }
         }
     }
@@ -349,17 +350,6 @@ private fun LoadingState() {
         val loading = stringResource(R.string.history_loading)
         CircularProgressIndicator(modifier = Modifier.semantics { contentDescription = loading })
     }
-}
-
-@Composable
-private fun ErrorState(onRetry: () -> Unit) {
-    MessageState(
-        iconRes = R.drawable.ic_history,
-        title = stringResource(R.string.history_error_title),
-        body = stringResource(R.string.history_error_body),
-        action = stringResource(R.string.history_error_retry),
-        onAction = onRetry,
-    )
 }
 
 @Composable
@@ -381,7 +371,6 @@ private fun EmptyState(filter: HistoryFilter, onPrimaryAction: () -> Unit) {
             R.string.history_empty_show_all,
         )
     }
-
     MessageState(
         iconRes = if (filter == HistoryFilter.FAVOURITES) R.drawable.ic_favorite_border else R.drawable.ic_history,
         title = stringResource(titleRes),

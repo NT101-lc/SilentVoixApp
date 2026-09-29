@@ -175,10 +175,13 @@ fun SilentVoixApp() {
                 screenStateHolder.SaveableStateProvider(destination.name) {
                     when (destination) {
                         AppDestination.TRANSLATE -> TranslateScreen(
-                            backendStatus = backendStatus,
-                            onRetryBackend = retryHealthCheck,
                             largeResultText = settings.largeResultText,
+                            autoSpeak = settings.autoSpeak,
                             hapticsEnabled = settings.haptics,
+                            onToggleAutoSpeak = {
+                                val enabled = !settings.autoSpeak
+                                app.appScope.launch { app.settingsRepository.update { it.copy(autoSpeak = enabled) } }
+                            },
                             onNewResult = onNewResult,
                             onReplay = { speak(it, true) },
                             contentPadding = contentPadding,
@@ -201,6 +204,7 @@ fun SilentVoixApp() {
                                 app.appScope.launch { app.settingsRepository.update { changed } }
                             },
                             backendStatus = backendStatus,
+                            onRetryBackend = retryHealthCheck,
                             speechStatus = speech.status,
                             onPreviewSpeech = { speak(it, true) },
                             contentPadding = contentPadding,

@@ -27,6 +27,8 @@ data class TranslateSession(
     val hasRunOnce: Boolean = false,
     /** Bumped on every recognition, so repeating the same phrase still reads as a new result. */
     val resultCount: Int = 0,
+    /** This session's phrases, oldest first, capped at [TRANSCRIPT_LIMIT]. */
+    val transcript: List<Recognition> = emptyList(),
 ) {
     /** Whether the camera and model should be running. */
     val isRunning: Boolean
@@ -36,6 +38,7 @@ data class TranslateSession(
         status = if (hasCameraPermission) SessionStatus.Starting else SessionStatus.AwaitingPermission,
         latest = null,
         hasRunOnce = true,
+        transcript = emptyList(),
     )
 
     fun onPermissionResult(granted: Boolean): TranslateSession {
@@ -48,7 +51,11 @@ data class TranslateSession(
 
     fun onRecognized(recognition: Recognition): TranslateSession =
         if (status == SessionStatus.Listening) {
-            copy(latest = recognition, resultCount = resultCount + 1)
+            copy(
+                latest = recognition,
+                resultCount = resultCount + 1,
+                transcript = (transcript + recognition).takeLast(TRANSCRIPT_LIMIT),
+            )
         } else {
             this
         }
@@ -57,4 +64,8 @@ data class TranslateSession(
         if (isRunning) copy(status = SessionStatus.Failed(failure)) else this
 
     fun onStopRequested(): TranslateSession = copy(status = SessionStatus.Idle)
+
+    companion object {
+        const val TRANSCRIPT_LIMIT = 30
+    }
 }

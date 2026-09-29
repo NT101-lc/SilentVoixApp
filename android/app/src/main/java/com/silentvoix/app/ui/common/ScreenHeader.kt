@@ -3,7 +3,6 @@ package com.silentvoix.app.ui.common
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -15,31 +14,31 @@ import com.silentvoix.app.ui.theme.EyebrowStyle
 
 /**
  * Screen title block. The app deliberately has no top app bar: each screen opens with its own
- * large heading so the content starts at the top of the window.
+ * large heading, and an optional line of context under it, so content starts at the top.
  */
 @Composable
 fun ScreenHeader(
-    eyebrow: String,
     title: String,
     modifier: Modifier = Modifier,
+    supporting: String? = null,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(bottom = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
-            text = eyebrow,
-            style = EyebrowStyle,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Text(
             text = title,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.semantics { heading() },
         )
+        if (supporting != null) {
+            Text(
+                text = supporting,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -47,7 +46,7 @@ fun ScreenHeader(
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
-        text = text,
+        text = text.uppercase(),
         style = EyebrowStyle,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.semantics { heading() },

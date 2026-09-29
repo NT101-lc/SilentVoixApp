@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">SilentVoix</string>
 
     <!-- Navigation -->
@@ -18,7 +18,6 @@
     <string name="speech_failed">Không đọc được câu này. Hãy thử lại.</string>
 
     <!-- Backend status -->
-    <string name="status_backend_label">MÁY CHỦ</string>
     <string name="status_backend_checking">Đang kiểm tra kết nối…</string>
     <string name="status_backend_db_up">Đã kết nối · Cơ sở dữ liệu sẵn sàng</string>
     <string name="status_backend_db_down">Đã kết nối · Cơ sở dữ liệu không khả dụng</string>
@@ -29,10 +28,9 @@
 
     <!-- Translate: capture stage -->
     <string name="stage_idle_title">Đưa bàn tay vào khung</string>
-    <string name="stage_idle_body">Nhấn “Bắt đầu nhận diện” để bật camera. Hình ảnh chỉ được xử lý trên máy, không gửi đi đâu.</string>
+    <string name="stage_idle_body">Nhấn Bắt đầu để bật camera. Hình ảnh chỉ được xử lý trên máy, không gửi đi đâu.</string>
     <string name="stage_starting">Đang khởi động camera…</string>
     <string name="stage_active_title">Giữ bàn tay trong khung</string>
-    <string name="stage_live">ĐANG NHẬN DIỆN</string>
     <string name="stage_permission_title">Cần quyền truy cập camera</string>
     <string name="stage_permission_body">Cho phép SilentVoix dùng camera để nhận diện cử chỉ.</string>
     <string name="stage_permission_denied_title">Chưa được cấp quyền camera</string>
@@ -43,21 +41,31 @@
     <string name="stage_error_model_body">Tệp mô hình bị thiếu hoặc hỏng. Hãy cài lại ứng dụng rồi thử lại.</string>
     <string name="stage_error_inference_title">Nhận diện bị gián đoạn</string>
     <string name="stage_error_inference_body">Đã xảy ra lỗi khi xử lý hình ảnh. Hãy thử lại.</string>
-    <string name="action_start">Bắt đầu nhận diện</string>
-    <string name="action_stop">Dừng nhận diện</string>
+    <string name="action_start">Bắt đầu</string>
+    <string name="action_stop">Dừng</string>
     <string name="action_retry">Thử lại</string>
     <string name="action_open_settings">Mở cài đặt ứng dụng</string>
 
     <!-- Translate: result -->
-    <string name="result_title">KẾT QUẢ</string>
-    <string name="result_idle_title">Chưa có kết quả</string>
-    <string name="result_idle_body">Nhấn “Bắt đầu nhận diện” rồi giữ một cử chỉ trong khung.</string>
-    <string name="result_waiting">Đang đọc cử chỉ…</string>
-    <string name="result_none_title">Không nhận được câu nào</string>
-    <string name="result_none_body">Phiên nhận diện đã dừng trước khi nhận ra cử chỉ nào. Hãy thử lại.</string>
     <string name="result_content_description">Kết quả: %1$s</string>
     <string name="result_confidence">Độ tin cậy: %1$d%%</string>
-    <string name="result_model_note">Mô hình hiện tại nhận diện 7 cử chỉ tay cơ bản (xoè tay, giơ ngón cái lên/xuống, chữ V, chỉ tay lên, nắm tay, “I love you”), chưa phải ngôn ngữ ký hiệu Việt Nam.</string>
+    <string name="model_note_short">7 cử chỉ tay cơ bản · chưa phải ký hiệu Việt Nam</string>
+
+    <!-- Translate: top bar, controls, transcript, full-screen caption -->
+    <string name="translate_status_ready">Sẵn sàng</string>
+    <string name="translate_status_starting">Đang khởi động</string>
+    <string name="translate_status_live">Đang nhận diện</string>
+    <string name="translate_status_permission">Chờ quyền camera</string>
+    <string name="translate_status_permission_denied">Thiếu quyền camera</string>
+    <string name="translate_status_error">Có lỗi</string>
+    <string name="control_auto_speak_on">Tự đọc: bật</string>
+    <string name="control_auto_speak_off">Tự đọc: tắt</string>
+    <string name="transcript_title">Trong phiên này</string>
+    <string name="transcript_empty">Các câu nhận diện được trong phiên sẽ hiện ở đây, câu mới nhất ở trên cùng.</string>
+    <string name="caption_expand">Phóng to để người đối diện đọc</string>
+    <string name="caption_fullscreen_eyebrow">Đưa màn hình cho người đối diện</string>
+    <string name="caption_fullscreen_hint">Chạm vào màn hình để đóng</string>
+    <string name="caption_close">Đóng</string>
 
     <!-- Phrases for the stock MediaPipe gestures (recognition/GesturePhrases.kt) -->
     <string name="gesture_open_palm">Xin chào</string>
@@ -69,12 +77,13 @@
     <string name="gesture_i_love_you">Tôi yêu bạn</string>
 
     <!-- History -->
-    <string name="history_eyebrow">CÂU ĐÃ DỊCH</string>
     <string name="history_filter_all">Tất cả</string>
     <string name="history_filter_today">Hôm nay</string>
     <string name="history_filter_favourites">Yêu thích</string>
     <string name="history_local_note">Lưu trên thiết bị này, chưa đồng bộ với máy chủ.</string>
-    <string name="history_item_confidence">Độ tin cậy %1$d%%</string>
+    <!-- Vietnamese has no plural forms, so a plain format string is correct. -->
+    <string name="history_summary" tools:ignore="PluralsCandidate">%1$d câu · lưu trên thiết bị này, chưa đồng bộ</string>
+    <string name="history_item_meta">%1$s · độ tin cậy %2$d%%</string>
     <string name="history_day_today">Hôm nay</string>
     <string name="history_day_yesterday">Hôm qua</string>
     <string name="history_loading">Đang tải lịch sử…</string>
@@ -94,14 +103,13 @@
     <string name="history_empty_show_all">Xem tất cả</string>
 
     <!-- Settings -->
-    <string name="settings_eyebrow">TUỲ CHỈNH</string>
     <string name="settings_section_appearance">GIAO DIỆN</string>
     <string name="settings_theme_label">Chủ đề</string>
     <string name="settings_theme_system">Hệ thống</string>
     <string name="settings_theme_light">Sáng</string>
     <string name="settings_theme_dark">Tối</string>
     <string name="settings_large_text_title">Chữ kết quả cỡ lớn</string>
-    <string name="settings_large_text_summary">Hiển thị kết quả dịch với cỡ chữ lớn hơn.</string>
+    <string name="settings_large_text_summary">Phụ đề trên camera hiển thị cỡ chữ lớn hơn.</string>
     <string name="settings_section_speech">GIỌNG ĐỌC</string>
     <string name="settings_speech_status_initializing">Đang khởi động giọng đọc…</string>
     <string name="settings_speech_status_ready">Giọng đọc tiếng Việt đã sẵn sàng.</string>
@@ -111,6 +119,9 @@
     <string name="settings_auto_speak_title">Tự động đọc kết quả</string>
     <string name="settings_auto_speak_summary">Đọc to mỗi kết quả mới.</string>
     <string name="settings_speech_rate">Tốc độ đọc: %1$s×</string>
+    <string name="settings_speech_rate_title">Tốc độ đọc</string>
+    <string name="settings_speech_rate_slow">Chậm</string>
+    <string name="settings_speech_rate_fast">Nhanh</string>
     <string name="settings_section_feedback">PHẢN HỒI</string>
     <string name="settings_haptics_title">Rung phản hồi</string>
     <string name="settings_haptics_summary">Rung nhẹ khi chạm vào nút và thẻ.</string>
