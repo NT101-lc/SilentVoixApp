@@ -1,0 +1,10 @@
+# Never bake local credentials into an image.
+.env
+.env.*
+
+target/
+.git/
+.idea/
+.vscode/
+*.iml
+*.md

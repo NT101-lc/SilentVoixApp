@@ -34,6 +34,10 @@ Backend (`backend-java/`):
 - DB settings come from env vars `SILENTVOIX_DATABASE_URL` (JDBC form, Neon pooled `-pooler` host),
   `SILENTVOIX_DATABASE_USERNAME`, `SILENTVOIX_DATABASE_PASSWORD`, optionally loaded from a
   git-ignored `backend-java/.env` (see `.env.example`). Never log or return the URL or password.
+- Deployment: `backend-java/Dockerfile` (JDK 21 build, JRE runtime, non-root; tests are left to
+  CI) and `backend-java/railway.json` (Railway: Dockerfile build, health check on
+  `/api/v1/health`). Steps for Railway + Neon are in `backend-java/README.md`. `.dockerignore`
+  keeps `.env` out of the image.
 - Tests (JUnit 5, `spring-boot-starter-webmvc-test`): `DatabaseHealthCheckerTest` (UP/DOWN/
   NOT_CONFIGURED with a hand-rolled `FakeDataSource`, no Mockito), `HealthEndpointTest` (full
   context + MockMvc per database state; the DOWN case uses the real Hikari/PostgreSQL driver
