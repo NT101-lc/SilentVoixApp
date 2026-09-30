@@ -1,10 +1,14 @@
 package com.silentvoix.app.ui.theme
 
 import android.app.Activity
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -34,9 +38,52 @@ fun SilentVoixTheme(
     }
 
     MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
+        colorScheme = (if (darkTheme) DarkColors else LightColors).animated(),
         typography = SilentVoixTypography,
         shapes = SilentVoixShapes,
         content = content,
+    )
+}
+
+/** Eases every colour to its new value, so switching theme is a soft change of light, not a flash. */
+@Composable
+private fun ColorScheme.animated(): ColorScheme {
+    @Composable
+    fun Color.eased(): Color = animateColorAsState(this, tween(durationMillis = 350), label = "scheme").value
+    return copy(
+        primary = primary.eased(),
+        onPrimary = onPrimary.eased(),
+        primaryContainer = primaryContainer.eased(),
+        onPrimaryContainer = onPrimaryContainer.eased(),
+        secondary = secondary.eased(),
+        onSecondary = onSecondary.eased(),
+        secondaryContainer = secondaryContainer.eased(),
+        onSecondaryContainer = onSecondaryContainer.eased(),
+        tertiary = tertiary.eased(),
+        onTertiary = onTertiary.eased(),
+        tertiaryContainer = tertiaryContainer.eased(),
+        onTertiaryContainer = onTertiaryContainer.eased(),
+        error = error.eased(),
+        onError = onError.eased(),
+        errorContainer = errorContainer.eased(),
+        onErrorContainer = onErrorContainer.eased(),
+        background = background.eased(),
+        onBackground = onBackground.eased(),
+        surface = surface.eased(),
+        onSurface = onSurface.eased(),
+        surfaceVariant = surfaceVariant.eased(),
+        onSurfaceVariant = onSurfaceVariant.eased(),
+        outline = outline.eased(),
+        outlineVariant = outlineVariant.eased(),
+        inverseSurface = inverseSurface.eased(),
+        inverseOnSurface = inverseOnSurface.eased(),
+        inversePrimary = inversePrimary.eased(),
+        surfaceBright = surfaceBright.eased(),
+        surfaceContainerLowest = surfaceContainerLowest.eased(),
+        surfaceContainerLow = surfaceContainerLow.eased(),
+        surfaceContainer = surfaceContainer.eased(),
+        surfaceContainerHigh = surfaceContainerHigh.eased(),
+        surfaceContainerHighest = surfaceContainerHighest.eased(),
+        surfaceTint = primary.eased(),
     )
 }

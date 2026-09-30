@@ -2,10 +2,14 @@
     <string name="app_name">SilentVoix</string>
 
     <!-- Navigation -->
+    <string name="nav_home">Trang chủ</string>
     <string name="nav_translate">Dịch</string>
+    <string name="nav_speak">Nói</string>
     <string name="nav_history">Lịch sử</string>
     <string name="nav_settings">Cài đặt</string>
+    <string name="title_home">Trang chủ</string>
     <string name="title_translate">Dịch ký hiệu</string>
+    <string name="title_speak">Nói bằng chữ</string>
     <string name="title_history">Lịch sử</string>
     <string name="title_settings">Cài đặt</string>
 
@@ -67,6 +71,109 @@
     <string name="caption_fullscreen_hint">Chạm vào màn hình để đóng</string>
     <string name="caption_close">Đóng</string>
 
+    <!-- Home dashboard -->
+    <string name="home_greeting_morning">Chào buổi sáng</string>
+    <string name="home_greeting_noon">Chào buổi trưa</string>
+    <string name="home_greeting_afternoon">Chào buổi chiều</string>
+    <string name="home_greeting_evening">Chào buổi tối</string>
+    <string name="home_date">%1$s, %2$d tháng %3$d</string>
+    <string name="home_theme_to_dark">Chuyển sang giao diện tối</string>
+    <string name="home_theme_to_light">Chuyển sang giao diện sáng</string>
+    <string name="home_hero_eyebrow">Dịch ký hiệu</string>
+    <string name="home_hero_title">Ký hiệu thành lời nói</string>
+    <string name="home_hero_body">Camera chỉ bật khi bạn nhấn nút và hình ảnh không rời khỏi máy.</string>
+    <string name="home_hero_action">Mở camera</string>
+    <string name="home_speak_title">Nói bằng chữ</string>
+    <string name="home_speak_body">Gõ hoặc chọn câu có sẵn, máy sẽ đọc to giúp bạn.</string>
+    <string name="home_section_activity">Hoạt động</string>
+    <string name="home_stat_today">Hôm nay</string>
+    <string name="home_stat_total">Tất cả</string>
+    <string name="home_stat_favourites">Yêu thích</string>
+    <string name="home_stat_description" tools:ignore="PluralsCandidate">%1$s: %2$d câu</string>
+    <string name="home_week_title">7 ngày qua</string>
+    <string name="home_week_total" tools:ignore="PluralsCandidate">%1$d câu</string>
+    <string name="home_week_bar_description" tools:ignore="PluralsCandidate">%1$s: %2$d câu</string>
+    <string name="home_week_empty">Chưa có câu nào trong 7 ngày qua. Mỗi câu bạn dịch sẽ được đếm ở đây.</string>
+    <string name="home_streak" tools:ignore="PluralsCandidate">Chuỗi %1$d ngày liên tiếp</string>
+    <string name="home_top_phrase">Hay dùng nhất: %1$s</string>
+    <string name="home_section_gestures">Cử chỉ máy nhận ra</string>
+    <string name="home_gestures_note">Chạm vào một thẻ để nghe câu tương ứng. Đây là cử chỉ tay phổ thông, chưa phải ngôn ngữ ký hiệu Việt Nam.</string>
+    <string name="home_gesture_description">Cử chỉ %1$s, nghĩa là: %2$s</string>
+    <string name="home_section_recent">Gần đây</string>
+    <string name="home_recent_all">Xem tất cả</string>
+    <string name="home_recent_empty">Những câu bạn vừa dịch sẽ hiện ở đây để đọc lại nhanh.</string>
+    <string-array name="weekday_long">
+        <item>Thứ Hai</item>
+        <item>Thứ Ba</item>
+        <item>Thứ Tư</item>
+        <item>Thứ Năm</item>
+        <item>Thứ Sáu</item>
+        <item>Thứ Bảy</item>
+        <item>Chủ Nhật</item>
+    </string-array>
+    <string-array name="weekday_short">
+        <item>T2</item>
+        <item>T3</item>
+        <item>T4</item>
+        <item>T5</item>
+        <item>T6</item>
+        <item>T7</item>
+        <item>CN</item>
+    </string-array>
+
+    <!-- Speak: type or pick a phrase, the phone says it -->
+    <string name="speak_supporting">Gõ hoặc chọn một câu. Máy sẽ đọc to và hiện chữ lớn cho người đối diện.</string>
+    <string name="speak_input_placeholder">Gõ điều bạn muốn nói…</string>
+    <string name="speak_input_label">Câu muốn nói</string>
+    <string name="speak_action_speak">Đọc to</string>
+    <string name="speak_action_save">Lưu câu</string>
+    <string name="speak_action_clear">Xoá chữ đã gõ</string>
+    <string name="speak_saved">Đã lưu vào “Của tôi”.</string>
+    <string name="speak_category_mine">Của tôi</string>
+    <string name="speak_category_greeting">Chào hỏi</string>
+    <string name="speak_category_needs">Nhu cầu</string>
+    <string name="speak_category_emergency">Khẩn cấp</string>
+    <string name="speak_mine_empty_title">Chưa có câu riêng</string>
+    <string name="speak_mine_empty_body">Gõ một câu bạn hay dùng rồi nhấn “Lưu câu”. Câu đó sẽ nằm ở đây, chạm một lần là đọc.</string>
+    <string name="speak_phrase_description">Đọc to: %1$s</string>
+    <string name="speak_remove_description">Xoá câu: %1$s</string>
+    <string-array name="phrases_greeting">
+        <item>Xin chào</item>
+        <item>Cảm ơn bạn</item>
+        <item>Xin lỗi</item>
+        <item>Tạm biệt</item>
+        <item>Rất vui được gặp bạn</item>
+        <item>Tôi là người Điếc</item>
+        <item>Tôi giao tiếp bằng ký hiệu và chữ viết</item>
+    </string-array>
+    <string-array name="phrases_needs">
+        <item>Bạn nói chậm lại giúp tôi</item>
+        <item>Bạn viết ra giúp tôi được không?</item>
+        <item>Bạn nhắc lại giúp tôi</item>
+        <item>Tôi chưa hiểu</item>
+        <item>Cái này giá bao nhiêu?</item>
+        <item>Nhà vệ sinh ở đâu?</item>
+        <item>Cho tôi xin một cốc nước</item>
+        <item>Tôi muốn đi đến địa chỉ này</item>
+    </string-array>
+    <string-array name="phrases_emergency">
+        <item>Tôi cần giúp đỡ</item>
+        <item>Hãy gọi cấp cứu 115 giúp tôi</item>
+        <item>Hãy gọi công an 113 giúp tôi</item>
+        <item>Tôi bị đau</item>
+        <item>Tôi bị lạc đường</item>
+        <item>Hãy liên hệ người thân giúp tôi</item>
+    </string-array>
+
+    <!-- The stock MediaPipe gestures (recognition/GesturePhrases.kt): what each is called -->
+    <string name="gesture_name_open_palm">Bàn tay mở</string>
+    <string name="gesture_name_thumb_up">Ngón cái lên</string>
+    <string name="gesture_name_thumb_down">Ngón cái xuống</string>
+    <string name="gesture_name_victory">Chữ V</string>
+    <string name="gesture_name_pointing_up">Ngón trỏ lên</string>
+    <string name="gesture_name_closed_fist">Nắm tay</string>
+    <string name="gesture_name_i_love_you">Cái, trỏ và út</string>
+
     <!-- Phrases for the stock MediaPipe gestures (recognition/GesturePhrases.kt) -->
     <string name="gesture_open_palm">Xin chào</string>
     <string name="gesture_thumb_up">Đồng ý</string>
@@ -101,6 +208,12 @@
     <string name="history_empty_favourites_title">Chưa có mục yêu thích</string>
     <string name="history_empty_favourites_body">Nhấn biểu tượng trái tim trên một câu để lưu lại đây.</string>
     <string name="history_empty_show_all">Xem tất cả</string>
+    <string name="history_clear">Xoá tất cả</string>
+    <string name="history_clear_title">Xoá toàn bộ lịch sử?</string>
+    <string name="history_clear_body" tools:ignore="PluralsCandidate">%1$d câu, kể cả các câu yêu thích, sẽ bị xoá khỏi thiết bị này và không thể khôi phục.</string>
+    <string name="history_clear_confirm">Xoá</string>
+    <string name="history_clear_cancel">Giữ lại</string>
+    <string name="history_cleared">Đã xoá lịch sử.</string>
 
     <!-- Settings -->
     <string name="settings_section_appearance">GIAO DIỆN</string>

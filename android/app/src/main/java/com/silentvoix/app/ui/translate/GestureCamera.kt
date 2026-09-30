@@ -18,6 +18,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.silentvoix.app.recognition.GestureRecognizerEngine
+import com.silentvoix.app.recognition.HandPose
 import com.silentvoix.app.recognition.Recognition
 import com.silentvoix.app.recognition.RecognitionFailure
 import com.silentvoix.app.recognition.phraseFor
@@ -31,12 +32,14 @@ private const val TAG = "GestureCamera"
  * is in the composition and the screen is started; leaving the composition releases both.
  *
  * Callbacks arrive on the main thread: [onReady] once the camera is streaming frames to the
- * model, [onRecognized] per stabilised gesture, [onFailure] if the camera or model fails.
+ * model, [onRecognized] per stabilised gesture, [onHand] per frame with the hand's landmarks placed
+ * for this preview (null when the hand leaves), [onFailure] if the camera or model fails.
  */
 @Composable
 fun GestureCamera(
     onReady: () -> Unit,
     onRecognized: (Recognition) -> Unit,
+    onHand: (HandPose?) -> Unit,
     onFailure: (RecognitionFailure) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -44,6 +47,7 @@ fun GestureCamera(
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnReady by rememberUpdatedState(onReady)
     val currentOnRecognized by rememberUpdatedState(onRecognized)
+    val currentOnHand by rememberUpdatedState(onHand)
     val currentOnFailure by rememberUpdatedState(onFailure)
 
     val previewView = remember {
@@ -61,6 +65,8 @@ fun GestureCamera(
         var engine: GestureRecognizerEngine? = null
         var cameraProvider: ProcessCameraProvider? = null
         var useCases: Array<UseCase> = emptyArray()
+        // The preview flips the front camera's image like a mirror; landmarks must follow it.
+        var mirrorPreview = false
         var disposed = false
 
         fun bindCamera(readyEngine: GestureRecognizerEngine) {
@@ -74,6 +80,7 @@ fun GestureCamera(
                     } else {
                         CameraSelector.DEFAULT_BACK_CAMERA
                     }
+                    mirrorPreview = selector == CameraSelector.DEFAULT_FRONT_CAMERA
                     val preview = Preview.Builder().build()
                         .also { it.setSurfaceProvider(previewView.surfaceProvider) }
                     val analysis = ImageAnalysis.Builder()
@@ -107,6 +114,7 @@ fun GestureCamera(
                             )
                         }
                     },
+                    onHand = { pose -> currentOnHand(pose?.withMirror(mirrorPreview)) },
                     onFailure = { currentOnFailure(it) },
                 )
             } catch (e: Exception) {

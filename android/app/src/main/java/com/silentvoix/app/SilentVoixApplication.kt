@@ -5,11 +5,13 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
 import com.silentvoix.app.data.history.HistoryDatabase
 import com.silentvoix.app.data.history.HistoryRepository
+import com.silentvoix.app.data.phrases.PhraseRepository
 import com.silentvoix.app.data.settings.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 
 private val android.content.Context.settingsDataStore by preferencesDataStore(name = "settings")
+private val android.content.Context.phrasesDataStore by preferencesDataStore(name = "phrases")
 
 /** Holds the app-wide stores. Created once per process. */
 class SilentVoixApplication : Application() {
@@ -18,6 +20,8 @@ class SilentVoixApplication : Application() {
     val appScope = CoroutineScope(SupervisorJob())
 
     val settingsRepository by lazy { SettingsRepository(settingsDataStore) }
+
+    val phraseRepository by lazy { PhraseRepository(phrasesDataStore) }
 
     val historyRepository by lazy {
         val db = Room.databaseBuilder(this, HistoryDatabase::class.java, "history.db").build()

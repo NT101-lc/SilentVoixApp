@@ -1,10 +1,13 @@
 package com.silentvoix.app.ui
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,7 +32,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -46,15 +48,17 @@ import com.silentvoix.app.speech.SpeechUnavailableReason
 import com.silentvoix.app.speech.rememberSpeech
 import com.silentvoix.app.ui.common.rememberHapticTap
 import com.silentvoix.app.ui.history.HistoryScreen
+import com.silentvoix.app.ui.home.HomeScreen
 import com.silentvoix.app.ui.settings.SettingsScreen
+import com.silentvoix.app.ui.speak.SpeakScreen
 import com.silentvoix.app.ui.theme.SilentVoixTheme
+import com.silentvoix.app.ui.theme.ThemeMode
 import com.silentvoix.app.ui.translate.TranslateScreen
 import kotlinx.coroutines.launch
 
 /**
- * App shell. Navigation adapts to the window: a bottom bar on phones and a navigation rail on
- * wider windows, via [NavigationSuiteScaffold]. There is no top app bar — each screen opens with
- * its own heading so the content can start at the very top of the window.
+ * The app: stores, speech and the five destinations. It opens on the home dashboard; the camera
+ * is only ever started from the Translate screen, or by the home screen's explicit action.
  */
 @Composable
 fun SilentVoixApp() {
@@ -63,8 +67,10 @@ fun SilentVoixApp() {
     // flash of the default theme before a saved dark theme applies.
     val storedSettings by app.settingsRepository.settings.collectAsStateWithLifecycle(initialValue = null)
     val settings = storedSettings ?: return
-    var destination by rememberSaveable { mutableStateOf(AppDestination.TRANSLATE) }
+    var destination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
     val screenStateHolder = rememberSaveableStateHolder()
+    // Set by the home screen's "open camera" action; Translate starts a session when it sees it.
+    var translateStartRequested by remember { mutableStateOf(false) }
 
     val healthClient = remember { BackendHealthClient(BuildConfig.BACKEND_BASE_URL) }
     var backendStatus by remember { mutableStateOf<BackendStatus>(BackendStatus.Checking) }
@@ -114,6 +120,114 @@ fun SilentVoixApp() {
         if (settings.autoSpeak) speak(recognition.text, false)
     }
 
+    val systemDark = isSystemInDarkTheme()
+    val isDark = when (settings.themeMode) {
+        ThemeMode.SYSTEM -> systemDark
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+
+    SilentVoixTheme(themeMode = settings.themeMode) {
+        val tap = rememberHapticTap(settings.haptics)
+        AppShell(
+            destination = destination,
+            onDestinationChange = {
+                if (it != destination) tap()
+                destination = it
+            },
+            snackbarHostState = snackbarHostState,
+        ) { contentPadding ->
+            // Keeps each tab's saveable state (e.g. history filters, a typed draft) while switching tabs.
+            screenStateHolder.SaveableStateProvider(destination.name) {
+                when (destination) {
+                    AppDestination.HOME -> HomeScreen(
+                        historyRepository = app.historyRepository,
+                        isDarkTheme = isDark,
+                        // Leaves "follow the system" for an explicit choice: the opposite of what is showing.
+                        onToggleTheme = {
+                            val next = if (isDark) ThemeMode.LIGHT else ThemeMode.DARK
+                            app.appScope.launch { app.settingsRepository.update { it.copy(themeMode = next) } }
+                        },
+                        onStartTranslate = {
+                            translateStartRequested = true
+                            destination = AppDestination.TRANSLATE
+                        },
+                        onOpenSpeak = { destination = AppDestination.SPEAK },
+                        onOpenHistory = { destination = AppDestination.HISTORY },
+                        hapticsEnabled = settings.haptics,
+                        onSpeak = { speak(it, true) },
+                        contentPadding = contentPadding,
+                    )
+                    AppDestination.TRANSLATE -> TranslateScreen(
+                        largeResultText = settings.largeResultText,
+                        autoSpeak = settings.autoSpeak,
+                        hapticsEnabled = settings.haptics,
+                        onToggleAutoSpeak = {
+                            val enabled = !settings.autoSpeak
+                            app.appScope.launch { app.settingsRepository.update { it.copy(autoSpeak = enabled) } }
+                        },
+                        onNewResult = onNewResult,
+                        onReplay = { speak(it, true) },
+                        contentPadding = contentPadding,
+                        startRequested = translateStartRequested,
+                        onStartRequestHandled = { translateStartRequested = false },
+                    )
+                    AppDestination.SPEAK -> SpeakScreen(
+                        phraseRepository = app.phraseRepository,
+                        onSavePhrase = { phrase ->
+                            app.appScope.launch { app.phraseRepository.add(phrase) }
+                            showMessage(context.getString(R.string.speak_saved))
+                        },
+                        onRemovePhrase = { phrase -> app.appScope.launch { app.phraseRepository.remove(phrase) } },
+                        hapticsEnabled = settings.haptics,
+                        onSpeak = { speak(it, true) },
+                        contentPadding = contentPadding,
+                    )
+                    AppDestination.HISTORY -> HistoryScreen(
+                        historyRepository = app.historyRepository,
+                        onToggleFavourite = { entry ->
+                            app.appScope.launch {
+                                app.historyRepository.setFavourite(entry.id, !entry.isFavourite)
+                            }
+                        },
+                        onClearAll = {
+                            app.appScope.launch { app.historyRepository.clear() }
+                            showMessage(context.getString(R.string.history_cleared))
+                        },
+                        onNavigateToTranslate = { destination = AppDestination.TRANSLATE },
+                        hapticsEnabled = settings.haptics,
+                        onSpeak = { speak(it, true) },
+                        contentPadding = contentPadding,
+                    )
+                    AppDestination.SETTINGS -> SettingsScreen(
+                        settings = settings,
+                        onSettingsChange = { changed ->
+                            app.appScope.launch { app.settingsRepository.update { changed } }
+                        },
+                        backendStatus = backendStatus,
+                        onRetryBackend = retryHealthCheck,
+                        speechStatus = speech.status,
+                        onPreviewSpeech = { speak(it, true) },
+                        contentPadding = contentPadding,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Navigation around a screen. It adapts to the window: a bottom bar on phones and a navigation
+ * rail on wider windows, via [NavigationSuiteScaffold]. There is no top app bar: each screen opens
+ * with its own heading so the content can start at the very top of the window.
+ */
+@Composable
+internal fun AppShell(
+    destination: AppDestination,
+    onDestinationChange: (AppDestination) -> Unit,
+    snackbarHostState: SnackbarHostState,
+    content: @Composable (PaddingValues) -> Unit,
+) {
     val layoutType = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
     // The navigation bar / rail already pads for the system bars on its own side.
     val contentInsets = if (layoutType == NavigationSuiteType.NavigationBar) {
@@ -121,104 +235,57 @@ fun SilentVoixApp() {
     } else {
         WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Bottom + WindowInsetsSides.End)
     }
-
-    SilentVoixTheme(themeMode = settings.themeMode) {
-        val tap = rememberHapticTap(settings.haptics)
-        // Read in composable scope: the navigationSuiteItems builder below is not composable.
-        val itemColors = NavigationSuiteDefaults.itemColors(
-            navigationBarItemColors = NavigationBarItemDefaults.colors(
-                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                indicatorColor = MaterialTheme.colorScheme.primary,
-                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-            navigationRailItemColors = NavigationRailItemDefaults.colors(
-                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                indicatorColor = MaterialTheme.colorScheme.primary,
-                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-        )
-        val navSuiteColors = NavigationSuiteDefaults.colors(
+    // Read in composable scope: the navigationSuiteItems builder below is not composable.
+    val itemColors = NavigationSuiteDefaults.itemColors(
+        navigationBarItemColors = NavigationBarItemDefaults.colors(
+            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+            indicatorColor = MaterialTheme.colorScheme.primary,
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+        navigationRailItemColors = NavigationRailItemDefaults.colors(
+            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+            indicatorColor = MaterialTheme.colorScheme.primary,
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+    )
+    NavigationSuiteScaffold(
+        layoutType = layoutType,
+        containerColor = MaterialTheme.colorScheme.background,
+        navigationSuiteColors = NavigationSuiteDefaults.colors(
             navigationBarContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             navigationRailContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        )
-        NavigationSuiteScaffold(
-            layoutType = layoutType,
-            containerColor = MaterialTheme.colorScheme.background,
-            navigationSuiteColors = navSuiteColors,
-            navigationSuiteItems = {
-                AppDestination.entries.forEach { target ->
-                    item(
-                        selected = target == destination,
-                        onClick = {
-                            if (target != destination) tap()
-                            destination = target
-                        },
-                        // The visible label names the destination for TalkBack.
-                        icon = { Icon(destinationIcon(target), contentDescription = null) },
-                        label = { Text(stringResource(target.labelRes)) },
-                        colors = itemColors,
-                    )
-                }
-            },
-        ) {
-            Scaffold(
-                containerColor = MaterialTheme.colorScheme.background,
-                snackbarHost = { SnackbarHost(snackbarHostState) },
-                contentWindowInsets = contentInsets,
-                modifier = Modifier,
-            ) { contentPadding ->
-                // Keeps each tab's saveable state (e.g. history filters) while switching tabs.
-                screenStateHolder.SaveableStateProvider(destination.name) {
-                    when (destination) {
-                        AppDestination.TRANSLATE -> TranslateScreen(
-                            largeResultText = settings.largeResultText,
-                            autoSpeak = settings.autoSpeak,
-                            hapticsEnabled = settings.haptics,
-                            onToggleAutoSpeak = {
-                                val enabled = !settings.autoSpeak
-                                app.appScope.launch { app.settingsRepository.update { it.copy(autoSpeak = enabled) } }
-                            },
-                            onNewResult = onNewResult,
-                            onReplay = { speak(it, true) },
-                            contentPadding = contentPadding,
-                        )
-                        AppDestination.HISTORY -> HistoryScreen(
-                            historyRepository = app.historyRepository,
-                            onToggleFavourite = { entry ->
-                                app.appScope.launch {
-                                    app.historyRepository.setFavourite(entry.id, !entry.isFavourite)
-                                }
-                            },
-                            onNavigateToTranslate = { destination = AppDestination.TRANSLATE },
-                            hapticsEnabled = settings.haptics,
-                            onSpeak = { speak(it, true) },
-                            contentPadding = contentPadding,
-                        )
-                        AppDestination.SETTINGS -> SettingsScreen(
-                            settings = settings,
-                            onSettingsChange = { changed ->
-                                app.appScope.launch { app.settingsRepository.update { changed } }
-                            },
-                            backendStatus = backendStatus,
-                            onRetryBackend = retryHealthCheck,
-                            speechStatus = speech.status,
-                            onPreviewSpeech = { speak(it, true) },
-                            contentPadding = contentPadding,
-                        )
-                    }
-                }
+        ),
+        navigationSuiteItems = {
+            AppDestination.entries.forEach { target ->
+                item(
+                    selected = target == destination,
+                    onClick = { onDestinationChange(target) },
+                    // The visible label names the destination for TalkBack.
+                    icon = { Icon(destinationIcon(target), contentDescription = null) },
+                    label = { Text(text = stringResource(target.labelRes), maxLines = 1) },
+                    colors = itemColors,
+                )
             }
-        }
+        },
+    ) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            contentWindowInsets = contentInsets,
+            content = content,
+        )
     }
 }
 
 @Composable
 private fun destinationIcon(destination: AppDestination): ImageVector = when (destination) {
+    AppDestination.HOME -> Icons.Filled.Home
     AppDestination.TRANSLATE -> ImageVector.vectorResource(R.drawable.ic_translate)
+    AppDestination.SPEAK -> ImageVector.vectorResource(R.drawable.ic_chat)
     AppDestination.HISTORY -> ImageVector.vectorResource(R.drawable.ic_history)
     AppDestination.SETTINGS -> Icons.Filled.Settings
 }

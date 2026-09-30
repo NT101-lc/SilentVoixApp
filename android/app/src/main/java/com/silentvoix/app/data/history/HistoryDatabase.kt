@@ -29,6 +29,9 @@ interface HistoryDao {
 
     @Query("UPDATE history SET is_favourite = :favourite WHERE id = :id")
     suspend fun setFavourite(id: Long, favourite: Boolean)
+
+    @Query("DELETE FROM history")
+    suspend fun clear()
 }
 
 @Database(entities = [HistoryEntity::class], version = 1)

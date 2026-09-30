@@ -23,7 +23,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
@@ -33,6 +35,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -82,6 +85,7 @@ private val ContentMaxWidth = 720.dp
 fun HistoryScreen(
     historyRepository: HistoryRepository,
     onToggleFavourite: (HistoryEntry) -> Unit,
+    onClearAll: () -> Unit,
     onNavigateToTranslate: () -> Unit,
     hapticsEnabled: Boolean,
     onSpeak: (String) -> Unit,
@@ -112,6 +116,10 @@ fun HistoryScreen(
             tap()
             onSpeak(it)
         },
+        onClearAll = {
+            tap()
+            onClearAll()
+        },
         onRetry = {
             tap()
             loadAttempt++
@@ -134,11 +142,34 @@ internal fun HistoryContent(
     zone: ZoneId,
     onToggleFavourite: (HistoryEntry) -> Unit,
     onReplay: (String) -> Unit,
+    onClearAll: () -> Unit,
     onRetry: () -> Unit,
     onNavigateToTranslate: () -> Unit,
     contentPadding: PaddingValues,
 ) {
     val total = (state as? HistoryUiState.Loaded)?.entries?.size
+    var confirmClear by rememberSaveable { mutableStateOf(false) }
+    if (confirmClear && total != null) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text(stringResource(R.string.history_clear_title)) },
+            text = { Text(stringResource(R.string.history_clear_body, total)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmClear = false
+                        onClearAll()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text(stringResource(R.string.history_clear_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.history_clear_cancel)) }
+            },
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -158,6 +189,19 @@ internal fun HistoryContent(
                     stringResource(R.string.history_summary, total)
                 } else {
                     stringResource(R.string.history_local_note)
+                },
+                action = if (total != null && total > 0) {
+                    {
+                        TextButton(
+                            onClick = { confirmClear = true },
+                            modifier = Modifier.heightIn(min = 48.dp),
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        ) {
+                            Text(stringResource(R.string.history_clear))
+                        }
+                    }
+                } else {
+                    null
                 },
             )
             SegmentedControl(

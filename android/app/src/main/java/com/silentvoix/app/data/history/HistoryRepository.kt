@@ -18,4 +18,7 @@ class HistoryRepository(
     }
 
     suspend fun setFavourite(id: Long, favourite: Boolean) = dao.setFavourite(id, favourite)
+
+    /** Deletes every entry, favourites included. */
+    suspend fun clear() = dao.clear()
 }

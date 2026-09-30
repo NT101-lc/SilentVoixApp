@@ -17,15 +17,24 @@ Native Android client for SilentVoix: gesture recognition in, spoken-language te
 
 ## Phase 1 UI
 
-- **Adaptive navigation**: `NavigationSuiteScaffold` shows a bottom bar (`Dịch`, `Lịch sử`, `Cài đặt`) on
-  phones and a navigation rail on larger windows. The Translate screen switches to two panes at ≥ 840 dp.
-- **Dịch** (main screen): live front-camera preview with on-device gesture recognition. Captions sit
+- **Adaptive navigation**: `NavigationSuiteScaffold` shows a bottom bar (`Trang chủ`, `Dịch`, `Nói`,
+  `Lịch sử`, `Cài đặt`) on phones and a navigation rail on larger windows. Home and Translate switch to
+  two columns at ≥ 840 dp.
+- **Trang chủ** (where the app opens): greeting, a light/dark toggle, a hero action that opens the camera,
+  a shortcut to Nói, today / total / favourite counts, a 7-day activity chart with streak and most-used
+  phrase, the gestures the model recognises (tap to hear), and the latest phrases. The camera never starts
+  on launch.
+- **Nói**: type a sentence or tap a ready-made phrase (greetings, needs, emergency) and the phone speaks
+  it and shows it full-screen for the other person. Phrases you save are kept on the device.
+- **Dịch**: live front-camera preview with on-device gesture recognition and the hand's skeleton drawn
+  over it. Captions sit
   inside the camera stage like subtitles (latest phrase large, the two before it faded above), so the
   reader never looks away from the signer. Camera-style controls: replay, start/stop, and an auto-speak
   toggle, each with a visible text label. A full-screen view shows the phrase to the other person. Wide
   windows add a transcript of the session. Permission and failure states explain what to do.
 - **Lịch sử**: every phrase recognised on Dịch, newest first, stored on the device (Room). Filters for all /
-  today / favourites, replay, favourite toggle, and loading, empty and error states driven by the store.
+  today / favourites, replay, favourite toggle, clear-all with confirmation, and loading, empty and error
+  states driven by the store.
 - **Cài đặt**: theme (system/light/dark), large result text, speech options, app info. Saved with
   DataStore, so they survive restarts.
 - Accessibility: 48–64 dp touch targets, headings, merged TalkBack nodes, live regions for results and

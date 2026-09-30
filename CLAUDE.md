@@ -41,8 +41,21 @@ Backend (`backend-java/`):
   `DatabaseConfigurationTest` (a malformed URL is never echoed). `./mvnw test`.
 
 Android (`android/`):
-- Vietnamese UI in `res/values/strings.xml`. `ui/SilentVoixApp.kt` uses `NavigationSuiteScaffold`
-  (bottom bar on phones, rail on larger windows) for Dịch / Lịch sử / Cài đặt.
+- Vietnamese UI in `res/values/strings.xml`. `ui/SilentVoixApp.kt` holds the stores, speech and the
+  five destinations (Trang chủ / Dịch / Nói / Lịch sử / Cài đặt); its stateless `AppShell` is the
+  `NavigationSuiteScaffold` (bottom bar on phones, rail on larger windows). The app opens on Trang
+  chủ. The camera starts only from Dịch's start button or the home screen's "Mở camera" action
+  (`startRequested` on `TranslateScreen`); never on launch.
+- Real: home dashboard (`ui/home/HomeScreen.kt`, stateless `HomeContent`): greeting and date, a
+  light/dark toggle, the hero action, stat tiles and a 7-day bar chart from
+  `data/history/HistoryStats.kt` (`historyStats`: today, total, favourites, week, streak, top
+  phrase), the gesture catalogue (`recognition/GesturePhrases.kt`: `SupportedGestures`, each with
+  a drawn `HandPose.glyph`), and the latest phrases. Everything is derived from the device's
+  history; nothing comes from the backend.
+- Real: Speak (`ui/speak/SpeakScreen.kt`): type a sentence or tap a ready-made phrase (string
+  arrays `phrases_*`), the phone speaks it and shows it full-screen (`ui/common/FullscreenCaption`).
+  The user's own phrases are saved by `data/phrases/PhraseRepository` in a second Preferences
+  DataStore (`phrases`), newest first, single-line, capped.
 - Real: backend health check (`data/backend/BackendHealthClient`, base URL from
   `BuildConfig.BACKEND_BASE_URL`, Gradle property `silentvoix.backendBaseUrl`, default
   `http://10.0.2.2:8081`). Cleartext HTTP is allowed only in debug, only to localhost/10.0.2.2.
@@ -69,16 +82,23 @@ Android (`android/`):
   `TranslateScreen` (stateful: session, permission, camera) over a stateless `TranslateContent`
   with a `camera` slot; live captions sit inside the camera stage, controls are a camera-style
   bar (replay / start-stop / auto-speak), and a full-screen caption view is for showing the other
-  person. `HistoryContent` is the stateless History screen (day-grouped rows). Shared pieces:
+  person. The stage draws the hand's skeleton over the preview: `recognition/HandPose` turns the
+  model's landmarks (reported in the unrotated sensor image's frame) upright and maps them onto
+  the centre-cropped, possibly mirrored preview. Palette (`ui/theme/Color.kt`): terracotta
+  primary, honey secondary, sage tertiary for "ready" states, warm cream/cacao neutrals; the
+  stage (`StagePalette`) is cacao with amber guides and the home hero (`HeroPalette`) is fired
+  clay, both the same in light and dark. `SilentVoixTheme` eases every scheme colour when the
+  theme changes; `Modifier.warmBackdrop()` is the glow behind the home screen. `HistoryContent` is the stateless History screen (day-grouped rows, clear-all behind a
+  confirmation). Shared pieces:
   `ui/common/ScreenHeader`, `SegmentedControl`. Server status lives in Settings, not on Translate.
 - Screenshot renders (design review, not regression tests): `app/src/test/.../screenshots/`,
   Roborazzi + Robolectric (SDK 35), excluded from normal runs and CI. Render with
   `./gradlew testDebugUnitTest -Pscreenshots`; PNGs land in `app/build/outputs/roborazzi/`.
 - Nothing is demo-only any more; no demo data or `DemoBadge` remains. If a placeholder is ever
   needed again, label it visibly in the UI.
-- Unit tests (JUnit 4, `app/src/test`) cover `GestureStabilizer`, `TranslateSession`,
-  `SpeechController`, `SettingsRepository` (against a real DataStore file), `HistoryUiState`
-  and history day labels: `./gradlew testDebugUnitTest`.
+- Unit tests (JUnit 4, `app/src/test`) cover `GestureStabilizer`, `TranslateSession`, `HandPose`,
+  `SpeechController`, `SettingsRepository` and `PhraseRepository` (against real DataStore files),
+  `HistoryUiState`, `historyStats` and history day labels: `./gradlew testDebugUnitTest`.
 
 Both wrappers are committed (Gradle under `android/`, Maven 3.9.16 `mvnw` under `backend-java/`);
 neither `gradle` nor `mvn` needs to be on the PATH. CI is `.github/workflows/ci.yml`: on pull

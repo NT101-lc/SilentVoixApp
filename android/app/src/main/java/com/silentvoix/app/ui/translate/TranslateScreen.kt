@@ -44,7 +44,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -66,6 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -86,13 +86,14 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.silentvoix.app.R
+import com.silentvoix.app.recognition.HandPose
 import com.silentvoix.app.recognition.Recognition
 import com.silentvoix.app.recognition.RecognitionFailure
 import com.silentvoix.app.recognition.SessionStatus
 import com.silentvoix.app.recognition.TranslateSession
+import com.silentvoix.app.ui.common.FullscreenCaptionDialog
+import com.silentvoix.app.ui.common.drawHand
 import com.silentvoix.app.ui.common.rememberHapticTap
 import com.silentvoix.app.ui.theme.EyebrowStyle
 import com.silentvoix.app.ui.theme.StagePalette
@@ -114,6 +115,9 @@ fun TranslateScreen(
     onNewResult: (Recognition) -> Unit,
     onReplay: (String) -> Unit,
     contentPadding: PaddingValues,
+    /** True when the user asked for the camera before arriving here (the home screen's button). */
+    startRequested: Boolean = false,
+    onStartRequestHandled: () -> Unit = {},
 ) {
     val context = LocalContext.current
     // Not saved across tab switches on purpose: leaving the screen releases the camera.
@@ -121,6 +125,9 @@ fun TranslateScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> session = session.onPermissionResult(granted) }
+    // Changes every camera frame, so it is only ever read while drawing (see HandSkeleton).
+    var hand by remember { mutableStateOf<HandPose?>(null) }
+    LaunchedEffect(session.isRunning) { if (!session.isRunning) hand = null }
 
     // Keyed on the count, not the text, so the same phrase recognised twice is reported twice.
     val currentOnNewResult by rememberUpdatedState(onNewResult)
@@ -129,9 +136,23 @@ fun TranslateScreen(
         if (session.resultCount > 0 && latest != null) currentOnNewResult(latest)
     }
 
+    val start = {
+        val hasPermission = context.checkSelfPermission(Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        session = session.onStartRequested(hasPermission)
+        if (!hasPermission) permissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+    LaunchedEffect(startRequested) {
+        if (startRequested) {
+            onStartRequestHandled()
+            if (!session.isRunning && session.status != SessionStatus.AwaitingPermission) start()
+        }
+    }
+
     val tap = rememberHapticTap(hapticsEnabled)
     TranslateContent(
         session = session,
+        hand = { hand },
         largeResultText = largeResultText,
         autoSpeak = autoSpeak,
         onToggleSession = {
@@ -139,10 +160,7 @@ fun TranslateScreen(
             if (session.isRunning || session.status == SessionStatus.AwaitingPermission) {
                 session = session.onStopRequested()
             } else {
-                val hasPermission = context.checkSelfPermission(Manifest.permission.CAMERA) ==
-                    PackageManager.PERMISSION_GRANTED
-                session = session.onStartRequested(hasPermission)
-                if (!hasPermission) permissionLauncher.launch(Manifest.permission.CAMERA)
+                start()
             }
         },
         onReplay = {
@@ -164,6 +182,7 @@ fun TranslateScreen(
             GestureCamera(
                 onReady = { session = session.onEngineReady() },
                 onRecognized = { session = session.onRecognized(it) },
+                onHand = { hand = it },
                 onFailure = { session = session.onFailure(it) },
                 modifier = modifier,
             )
@@ -173,11 +192,13 @@ fun TranslateScreen(
 
 /**
  * Stateless Translate screen. [camera] is composed only while the session runs; screenshot
- * tooling passes a stand-in so every state can be rendered without CameraX.
+ * tooling passes a stand-in so every state can be rendered without CameraX. [hand] is a lambda so
+ * a new pose every frame redraws the skeleton without recomposing the screen.
  */
 @Composable
 internal fun TranslateContent(
     session: TranslateSession,
+    hand: () -> HandPose?,
     largeResultText: Boolean,
     autoSpeak: Boolean,
     onToggleSession: () -> Unit,
@@ -190,12 +211,13 @@ internal fun TranslateContent(
     var showFullscreen by rememberSaveable { mutableStateOf(false) }
     val latest = session.latest
     if (showFullscreen && latest != null) {
-        FullscreenCaptionDialog(text = latest.text, onDismiss = { showFullscreen = false })
+        FullscreenCaptionDialog(text = latest.text, onDismiss = { showFullscreen = false }, onReplay = onReplay)
     }
 
     val stage: @Composable (Modifier) -> Unit = { modifier ->
         CaptureStage(
             session = session,
+            hand = hand,
             largeResultText = largeResultText,
             onExpand = { showFullscreen = true },
             onOpenSettings = onOpenSettings,
@@ -303,10 +325,22 @@ private fun StatusChip(status: SessionStatus) {
         ChipTone.Live -> MaterialTheme.colorScheme.primary
         ChipTone.Error -> MaterialTheme.colorScheme.error
     }
+    val container by animateColorAsState(
+        when (tone) {
+            ChipTone.Neutral -> MaterialTheme.colorScheme.surfaceContainerHigh
+            ChipTone.Live -> MaterialTheme.colorScheme.primaryContainer
+            ChipTone.Error -> MaterialTheme.colorScheme.errorContainer
+        },
+        label = "chip",
+    )
     Surface(
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = MaterialTheme.colorScheme.onSurface,
+        color = container,
+        contentColor = when (tone) {
+            ChipTone.Neutral -> MaterialTheme.colorScheme.onSurface
+            ChipTone.Live -> MaterialTheme.colorScheme.onPrimaryContainer
+            ChipTone.Error -> MaterialTheme.colorScheme.onErrorContainer
+        },
     ) {
         Row(
             modifier = Modifier
@@ -327,13 +361,16 @@ private fun StatusChip(status: SessionStatus) {
 }
 
 /**
- * The capture area: an ink panel showing the camera while a session runs, with the framing guide,
- * and live captions docked to the bottom like subtitles, so the person reading never has to look
- * away from the signer. Permission and failure states replace the captions with an explanation.
+ * The capture area: a cacao panel showing the camera while a session runs, with the framing guide
+ * and the hand's skeleton drawn over it, so the signer sees at once whether their hand is being
+ * read. Text is docked to the bottom like subtitles: the hint before a session, live captions
+ * during one, so the person reading never has to look away from the signer. Permission and failure
+ * states take the centre with an explanation instead.
  */
 @Composable
 private fun CaptureStage(
     session: TranslateSession,
+    hand: () -> HandPose?,
     largeResultText: Boolean,
     onExpand: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -366,28 +403,44 @@ private fun CaptureStage(
             .background(StagePalette.Ink)
             .border(1.dp, StagePalette.InkEdge, shape),
     ) {
-        if (session.isRunning) camera(Modifier.fillMaxSize())
+        if (session.isRunning) {
+            camera(Modifier.fillMaxSize())
+        } else {
+            LanternGlow(dimmed = blocking, modifier = Modifier.fillMaxSize())
+        }
 
         HandFramingGuide(
             color = guideColor,
             alpha = when {
-                blocking -> 0.35f
+                blocking -> 0.3f
                 isLive -> breath
-                else -> 0.7f
+                else -> 0.75f
             },
-            // Leave the lower part to the captions once there is something to read.
-            bottomInsetFraction = if (latest != null || isLive) 0.36f else 0.12f,
+            bottomInsetFraction = if (blocking) FrameBottomInsetBlocking else FrameBottomInset,
             modifier = Modifier.fillMaxSize(),
         )
+        when {
+            session.isRunning -> HandSkeleton(hand = hand, modifier = Modifier.fillMaxSize())
+            !blocking && latest == null -> PalmHint(
+                // Breathes gently so the empty stage reads as waiting, not switched off.
+                alpha = { 0.4f + 0.3f * breath },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
-        if (blocking || (latest == null && !isLive)) {
-            StageMessage(
+        when {
+            blocking -> StageMessage(
                 status = status,
                 onOpenSettings = onOpenSettings,
                 modifier = Modifier.align(Alignment.Center),
             )
-        } else {
-            CaptionPanel(
+            latest == null && !isLive -> StageHint(
+                starting = status == SessionStatus.Starting,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+            )
+            else -> CaptionPanel(
                 session = session,
                 largeResultText = largeResultText,
                 modifier = Modifier
@@ -403,7 +456,7 @@ private fun CaptureStage(
                     .align(Alignment.TopEnd)
                     .padding(8.dp),
                 colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = StagePalette.OnInk.copy(alpha = 0.12f),
+                    containerColor = StagePalette.Ink.copy(alpha = 0.55f),
                     contentColor = StagePalette.OnInk,
                 ),
             ) {
@@ -412,6 +465,99 @@ private fun CaptureStage(
                     contentDescription = stringResource(R.string.caption_expand),
                 )
             }
+        }
+    }
+}
+
+// The framing guide's box, as fractions of the stage: shared by the brackets and the palm hint.
+private const val FrameSideInset = 0.16f
+private const val FrameTopInset = 0.1f
+private const val FrameBottomInset = 0.3f
+private const val FrameBottomInsetBlocking = 0.1f
+
+/** Warm light pooled where the hand goes, so the stage is inviting before the camera is on. */
+@Composable
+private fun LanternGlow(dimmed: Boolean, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val centre = Offset(size.width / 2f, size.height * (FrameTopInset + (1f - FrameBottomInset)) / 2f)
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(StagePalette.Glow, Color.Transparent),
+                center = centre,
+                radius = size.maxDimension * 0.62f,
+            ),
+            alpha = if (dimmed) 0.45f else 1f,
+        )
+    }
+}
+
+/** The idle stage's illustration: an open palm sitting in the framing guide. Decorative. */
+@Composable
+private fun PalmHint(alpha: () -> Float, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val frameWidth = size.width * (1f - 2 * FrameSideInset)
+        val frameHeight = size.height * (1f - FrameTopInset - FrameBottomInset)
+        val side = minOf(frameWidth, frameHeight) * 0.92f
+        val left = (size.width - side) / 2f
+        val top = size.height * FrameTopInset + (frameHeight - side) / 2f
+        val points = HandPose.OpenPalm.toViewPoints(side, side)
+        for (i in points.indices step 2) {
+            points[i] += left
+            points[i + 1] += top
+        }
+        drawHand(points, bone = StagePalette.Guide, joint = StagePalette.OnInk, alpha = alpha())
+    }
+}
+
+/**
+ * The hand the model sees, drawn over the camera image. [hand] is read in the draw phase only, so
+ * a new pose per frame costs a redraw of this canvas and nothing else.
+ */
+@Composable
+private fun HandSkeleton(hand: () -> HandPose?, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val pose = hand() ?: return@Canvas
+        drawHand(
+            points = pose.toViewPoints(size.width, size.height),
+            bone = StagePalette.Guide,
+            joint = StagePalette.OnInk,
+            // A dark edge keeps the skeleton readable over bright video.
+            outline = StagePalette.Ink,
+        )
+    }
+}
+
+/** What to do before a session has produced anything, docked where the captions will appear. */
+@Composable
+private fun StageHint(starting: Boolean, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .padding(start = 28.dp, end = 28.dp, bottom = 26.dp)
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (starting) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(26.dp),
+                color = StagePalette.Guide,
+                strokeWidth = 3.dp,
+            )
+        }
+        Text(
+            text = stringResource(if (starting) R.string.stage_starting else R.string.stage_idle_title),
+            style = MaterialTheme.typography.titleLarge,
+            color = StagePalette.OnInk,
+            textAlign = TextAlign.Center,
+        )
+        if (!starting) {
+            Text(
+                text = stringResource(R.string.stage_idle_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = StagePalette.OnInkMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = 360.dp),
+            )
         }
     }
 }
@@ -458,7 +604,7 @@ private fun CaptionPanel(
             Text(
                 text = earlier.text,
                 style = MaterialTheme.typography.titleMedium,
-                color = StagePalette.OnInkMuted.copy(alpha = if (index == 0) 0.55f else 0.85f),
+                color = StagePalette.OnInkMuted.copy(alpha = if (index == 0) 0.7f else 0.9f),
             )
         }
 
@@ -513,7 +659,7 @@ private fun ConfidenceMeter(percent: Int) {
     }
 }
 
-/** Copy for idle, starting, permission and failure states. Announced so TalkBack hears changes. */
+/** Copy for permission and failure states, centred. Announced so TalkBack hears changes. */
 @Composable
 private fun StageMessage(
     status: SessionStatus,
@@ -521,13 +667,12 @@ private fun StageMessage(
     modifier: Modifier = Modifier,
 ) {
     val (title, body) = when (status) {
-        SessionStatus.Idle, SessionStatus.Listening ->
+        SessionStatus.Idle, SessionStatus.Starting, SessionStatus.Listening ->
             R.string.stage_idle_title to R.string.stage_idle_body
         SessionStatus.AwaitingPermission ->
             R.string.stage_permission_title to R.string.stage_permission_body
         SessionStatus.PermissionDenied ->
             R.string.stage_permission_denied_title to R.string.stage_permission_denied_body
-        SessionStatus.Starting -> R.string.stage_starting to null
         is SessionStatus.Failed -> when (status.failure) {
             RecognitionFailure.CAMERA_UNAVAILABLE ->
                 R.string.stage_error_camera_title to R.string.stage_error_camera_body
@@ -551,27 +696,19 @@ private fun StageMessage(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (status == SessionStatus.Starting) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(30.dp),
-                    color = StagePalette.Guide,
-                    strokeWidth = 3.dp,
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(if (isError) StagePalette.ErrorSoft else StagePalette.OnInk.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_videocam),
+                    contentDescription = null,
+                    tint = if (isError) StagePalette.Error else StagePalette.OnInkMuted,
+                    modifier = Modifier.size(26.dp),
                 )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(if (isError) StagePalette.ErrorSoft else StagePalette.OnInk.copy(alpha = 0.08f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = ImageVector.vectorResource(R.drawable.ic_videocam),
-                        contentDescription = null,
-                        tint = if (isError) StagePalette.Error else StagePalette.OnInkMuted,
-                        modifier = Modifier.size(26.dp),
-                    )
-                }
             }
             Text(
                 text = stringResource(title),
@@ -579,14 +716,12 @@ private fun StageMessage(
                 color = StagePalette.OnInk,
                 textAlign = TextAlign.Center,
             )
-            if (body != null) {
-                Text(
-                    text = stringResource(body),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = StagePalette.OnInkMuted,
-                    textAlign = TextAlign.Center,
-                )
-            }
+            Text(
+                text = stringResource(body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = StagePalette.OnInkMuted,
+                textAlign = TextAlign.Center,
+            )
         }
         if (status == SessionStatus.PermissionDenied) {
             OutlinedButton(
@@ -610,9 +745,9 @@ private fun HandFramingGuide(
     modifier: Modifier = Modifier,
 ) {
     Canvas(modifier = modifier) {
-        val insetX = size.width * 0.16f
+        val insetX = size.width * FrameSideInset
         val left = insetX
-        val top = size.height * 0.12f
+        val top = size.height * FrameTopInset
         val right = size.width - insetX
         val bottom = size.height * (1f - bottomInsetFraction)
         val arm = minOf(right - left, bottom - top) * 0.2f
@@ -685,11 +820,13 @@ private fun ControlBar(
 
 @Composable
 private fun PrimaryControl(isActive: Boolean, label: String, onClick: () -> Unit) {
+    // Stop is the quiet, dark state: terracotta stays the colour of "go", and nothing on this
+    // screen borrows the error colour unless something is actually wrong.
     val container by animateColorAsState(
-        if (isActive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+        if (isActive) MaterialTheme.colorScheme.inverseSurface else MaterialTheme.colorScheme.primary,
         label = "primaryControl",
     )
-    val content = if (isActive) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
+    val content = if (isActive) MaterialTheme.colorScheme.inverseOnSurface else MaterialTheme.colorScheme.onPrimary
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(24.dp))
@@ -811,59 +948,6 @@ private fun TranscriptPanel(transcript: List<Recognition>, modifier: Modifier = 
                     color = if (index == 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
-    }
-}
-
-/** Full-screen phrase to show the other person. Tap anywhere to close. */
-@Composable
-private fun FullscreenCaptionDialog(text: String, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        FullscreenCaption(text = text, onDismiss = onDismiss)
-    }
-}
-
-@Composable
-internal fun FullscreenCaption(text: String, onDismiss: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .clickable(onClick = onDismiss),
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-    ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.caption_fullscreen_eyebrow).uppercase(),
-                style = EyebrowStyle,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(top = 14.dp),
-            )
-            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd)) {
-                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.caption_close))
-            }
-            Text(
-                text = text,
-                style = if (text.length <= 18) MaterialTheme.typography.displayLarge else MaterialTheme.typography.displayMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .semantics { liveRegion = LiveRegionMode.Polite },
-            )
-            Text(
-                text = stringResource(R.string.caption_fullscreen_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 12.dp),
-            )
         }
     }
 }
