@@ -40,7 +40,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import com.silentvoix.app.ui.common.pressBounce
+import com.silentvoix.app.ui.scene.LeafBurstEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -62,6 +67,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.silentvoix.app.R
+import com.silentvoix.app.ui.scene.skyWash
 import com.silentvoix.app.data.phrases.PhraseRepository
 import com.silentvoix.app.ui.common.FullscreenCaptionDialog
 import com.silentvoix.app.ui.common.ScreenHeader
@@ -95,6 +101,8 @@ fun SpeakScreen(
     var draft by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf(PhraseCategory.GREETING) }
     var showing by rememberSaveable { mutableStateOf<String?>(null) }
+    // Bumped on every save: a few leaves fly up from the save button.
+    var saveBurst by remember { mutableIntStateOf(0) }
     val tap = rememberHapticTap(hapticsEnabled)
     val keyboard = LocalSoftwareKeyboardController.current
 
@@ -123,6 +131,7 @@ fun SpeakScreen(
         onSave = {
             tap()
             onSavePhrase(draft)
+            saveBurst++
             draft = ""
             category = PhraseCategory.MINE
         },
@@ -131,6 +140,7 @@ fun SpeakScreen(
             onRemovePhrase(it)
         },
         contentPadding = contentPadding,
+        saveBurst = saveBurst,
     )
 }
 
@@ -145,11 +155,13 @@ internal fun SpeakContent(
     onSave: () -> Unit,
     onRemove: (String) -> Unit,
     contentPadding: PaddingValues,
+    saveBurst: Int = 0,
 ) {
     val phrases = category.phrasesRes?.let { stringArrayResource(it).toList() } ?: saved
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .skyWash()
             .padding(contentPadding),
         contentAlignment = Alignment.TopCenter,
     ) {
@@ -171,7 +183,13 @@ internal fun SpeakContent(
                 )
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Composer(draft = draft, onDraftChange = onDraftChange, onSpeak = { onSpeak(draft) }, onSave = onSave)
+                Composer(
+                    draft = draft,
+                    onDraftChange = onDraftChange,
+                    onSpeak = { onSpeak(draft) },
+                    onSave = onSave,
+                    saveBurst = saveBurst,
+                )
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 CategoryPills(
@@ -197,7 +215,13 @@ internal fun SpeakContent(
 
 /** The text box with its two actions: say it now, or keep it for next time. */
 @Composable
-private fun Composer(draft: String, onDraftChange: (String) -> Unit, onSpeak: () -> Unit, onSave: () -> Unit) {
+private fun Composer(
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    onSpeak: () -> Unit,
+    onSave: () -> Unit,
+    saveBurst: Int,
+) {
     val hasText = draft.isNotBlank()
     val label = stringResource(R.string.speak_input_label)
     Surface(
@@ -235,10 +259,18 @@ private fun Composer(draft: String, onDraftChange: (String) -> Unit, onSpeak: ()
                 modifier = Modifier.padding(start = 6.dp, end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = onSave, enabled = hasText, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.speak_action_save))
+                Box(contentAlignment = Alignment.Center) {
+                    TextButton(onClick = onSave, enabled = hasText, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.speak_action_save))
+                    }
+                    LeafBurstEffect(
+                        trigger = saveBurst,
+                        colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary, Color(0xFF9CCB7A)),
+                        spread = 56.dp,
+                        modifier = Modifier.size(1.dp),
+                    )
                 }
                 Spacer(Modifier.weight(1f))
                 if (hasText) {
@@ -307,9 +339,12 @@ private fun CategoryPills(selected: PhraseCategory, onSelect: (PhraseCategory) -
 @Composable
 private fun PhraseTile(phrase: String, urgent: Boolean, onSpeak: () -> Unit, onRemove: (() -> Unit)?) {
     val speakDescription = stringResource(R.string.speak_phrase_description, phrase)
+    val press = remember { MutableInteractionSource() }
     Surface(
         onClick = onSpeak,
+        interactionSource = press,
         modifier = Modifier
+            .pressBounce(press)
             .fillMaxWidth()
             .semantics { contentDescription = speakDescription },
         shape = RoundedCornerShape(22.dp),

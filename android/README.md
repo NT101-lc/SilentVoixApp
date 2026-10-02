@@ -20,6 +20,11 @@ Native Android client for SilentVoix: gesture recognition in, spoken-language te
 - **Adaptive navigation**: `NavigationSuiteScaffold` shows a bottom bar (`Trang chủ`, `Dịch`, `Nói`,
   `Lịch sử`, `Cài đặt`) on phones and a navigation rail on larger windows. Home and Translate switch to
   two columns at ≥ 840 dp.
+- **Look**: a hand-painted countryside. The home screen opens on a scene painted for the real time of
+  day (dawn, day, dusk, or a starry night with fireflies), with drifting clouds, parallax hills and
+  swaying grass; other screens carry a wash of sky. Lora headlines, paper grain, springy cards,
+  sliding tab changes, and small leaf-burst celebrations for streaks and phrase counts. Ambient motion
+  stops when the system's animations are off.
 - **Trang chủ** (where the app opens): greeting, a light/dark toggle, a hero action that opens the camera,
   a shortcut to Nói, today / total / favourite counts, a 7-day activity chart with streak and most-used
   phrase, the gestures the model recognises (tap to hear), and the latest phrases. The camera never starts

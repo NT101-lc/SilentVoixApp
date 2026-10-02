@@ -17,6 +17,8 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 @Composable
 fun SilentVoixTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
+    /** Dark status-bar icons when true; defaults to following the theme. Set by screens painted under the bar. */
+    lightStatusBars: Boolean? = null,
     content: @Composable () -> Unit,
 ) {
     val darkTheme = when (themeMode) {
@@ -31,7 +33,7 @@ fun SilentVoixTheme(
         SideEffect {
             val window = (view.context as Activity).window
             WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightStatusBars = lightStatusBars ?: !darkTheme
                 isAppearanceLightNavigationBars = !darkTheme
             }
         }

@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.silentvoix.app.BuildConfig
 import com.silentvoix.app.R
+import com.silentvoix.app.ui.scene.skyWash
 import com.silentvoix.app.data.backend.BackendStatus
 import com.silentvoix.app.speech.SpeechRate
 import com.silentvoix.app.speech.SpeechStatus
@@ -88,6 +89,7 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .skyWash()
             .padding(contentPadding)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,

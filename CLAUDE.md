@@ -107,11 +107,24 @@ Android (`android/`):
   countryside look (inspired by Japanese animated films; no studio characters or artwork). Day:
   forest-green primary (the one action colour), sky-blue secondary, tile-red tertiary (favourites,
   rewards) on warm paper. Night: deep-blue sky, leaf green, lantern orange. The stage
-  (`StagePalette`) is a night sky with firefly-green guides and the home hero (`HeroPalette`) a
-  dusk forest, both the same in light and dark. `PaletteContrastTest` checks every text/background
+  (`StagePalette`) is a night sky with firefly-green guides, the same in light and dark. `PaletteContrastTest` checks every text/background
   pair in both schemes against WCAG AA (`ui/theme/Contrast.kt`). Type: Lora (OFL) for display and
   headline styles, Be Vietnam Pro for everything else. `SilentVoixTheme` eases every scheme colour when the
-  theme changes; `Modifier.warmBackdrop()` is the glow behind the home screen. `HistoryContent` is the stateless History screen (day-grouped rows, clear-all behind a
+  theme changes, and takes `lightStatusBars` so the home screen's icons follow its sky.
+- Scenes (`ui/scene/`): pure, tested model (`Sky.kt`: `TimeOfDay.from(hour)`, `skyPalette`,
+  whose `onSky` text is checked for contrast; `SceneLayout.kt`: seeded clouds, stars, fireflies,
+  hill ridges, `sunPosition`; `LeafBurst.kt`) and drawing (`SkyScene`: the home header, painted for
+  the real time of day with drifting clouds, parallax hills on scroll, swaying grass, fireflies at
+  night; `NightStage` for the idle camera; `Modifier.skyWash()` behind other screens' titles;
+  `Modifier.paperGrain()` on the scaffold; `LeafBurstEffect`). Scene time runs from
+  `rememberSceneClock` at ~30 fps and is read only while drawing. `rememberShouldAnimate()`
+  freezes ambient motion when system animations are off. Tabs cross-fade and slide by direction
+  (`AnimatedContent` in `SilentVoixApp`); cards use `Modifier.pressBounce`; the full-screen caption
+  rises into place; the week chart's bars grow in.
+- Rewards: `data/progress/Milestones.kt` (streaks of 3/7/30 days, 10/50/100 phrases; only the
+  rarest new one is shown, and all reached ones are then recorded) drives a celebration card with
+  falling leaves on Home; celebrated milestones are stored in `AppSettings.celebratedMilestones`.
+  Saving a phrase on Speak throws a few leaves from the button. `HistoryContent` is the stateless History screen (day-grouped rows, clear-all behind a
   confirmation). Shared pieces:
   `ui/common/ScreenHeader`, `SegmentedControl`. Server status lives in Settings, not on Translate.
 - Screenshot renders (design review, not regression tests): `app/src/test/.../screenshots/`,
@@ -121,7 +134,8 @@ Android (`android/`):
   needed again, label it visibly in the UI.
 - Unit tests (JUnit 4, `app/src/test`) cover `GestureStabilizer`, `TranslateSession`, `HandPose`,
   `SpeechController`, `SettingsRepository` and `PhraseRepository` (against real DataStore files),
-  `HistoryUiState`, `historyStats`, history day labels and palette contrast: `./gradlew testDebugUnitTest`.
+  `HistoryUiState`, `historyStats`, history day labels, palette contrast, the scene model, leaf
+  bursts, motion settings and milestones: `./gradlew testDebugUnitTest`.
 
 Both wrappers are committed (Gradle under `android/`, Maven 3.9.16 `mvnw` under `backend-java/`);
 neither `gradle` nor `mvn` needs to be on the PATH. CI is `.github/workflows/ci.yml`: on pull

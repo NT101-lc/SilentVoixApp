@@ -85,18 +85,6 @@ internal val DarkColors = darkColorScheme(
 )
 
 /**
- * The home screen's hero card: a forest at dusk in both themes, with firefly-light rings, so the
- * app's one "brand moment" looks the same on a day or a night page. Text pairs meet WCAG AA.
- */
-object HeroPalette {
-    val Top = Color(0xFF2F5A2A)
-    val Bottom = Color(0xFF16301C)
-    val OnHero = Color(0xFFFBF6E8)
-    val OnHeroMuted = Color(0xFFDCE8CE)
-    val Ring = Color(0xFFE4F59E)
-}
-
-/**
  * Colours for the gesture capture stage: a night sky in both themes, so the framing area reads as
  * the focus of the app rather than another surface. Its light is firefly green.
  */

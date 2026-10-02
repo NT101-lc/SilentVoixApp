@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.silentvoix.app.R
+import com.silentvoix.app.ui.scene.skyWash
 import com.silentvoix.app.data.history.EntryDay
 import com.silentvoix.app.data.history.HistoryEntry
 import com.silentvoix.app.data.history.HistoryRepository
@@ -173,6 +174,7 @@ internal fun HistoryContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .skyWash()
             .padding(contentPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

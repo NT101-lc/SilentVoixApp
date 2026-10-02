@@ -1,6 +1,36 @@
 package com.silentvoix.app.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.silentvoix.app.data.progress.Milestone
+import com.silentvoix.app.data.progress.milestoneToCelebrate
+import com.silentvoix.app.data.progress.reachedMilestones
+import com.silentvoix.app.ui.common.pressBounce
+import com.silentvoix.app.ui.scene.LeafBurstEffect
+import com.silentvoix.app.ui.scene.NightStage
+import com.silentvoix.app.ui.scene.SkyPalette
+import com.silentvoix.app.ui.scene.SkyScene
+import com.silentvoix.app.ui.scene.TimeOfDay
+import com.silentvoix.app.ui.scene.skyPalette
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -75,9 +105,7 @@ import com.silentvoix.app.recognition.SupportedGestures
 import com.silentvoix.app.ui.common.HandGlyph
 import com.silentvoix.app.ui.common.SectionLabel
 import com.silentvoix.app.ui.common.rememberHapticTap
-import com.silentvoix.app.ui.common.warmBackdrop
 import com.silentvoix.app.ui.theme.EyebrowStyle
-import com.silentvoix.app.ui.theme.HeroPalette
 import com.silentvoix.app.ui.theme.StagePalette
 import java.time.Instant
 import java.time.LocalDate
@@ -104,16 +132,36 @@ fun HomeScreen(
     onOpenHistory: () -> Unit,
     hapticsEnabled: Boolean,
     onSpeak: (String) -> Unit,
+    celebrated: Set<Milestone>,
+    onCelebrated: (Set<Milestone>) -> Unit,
     contentPadding: PaddingValues,
 ) {
     // Until the store answers, the dashboard shows zeros rather than a spinner: it settles in a
     // few milliseconds and the layout does not jump.
     val entries by historyRepository.entries.collectAsStateWithLifecycle(initialValue = emptyList())
     val tap = rememberHapticTap(hapticsEnabled)
+    val nowMillis = System.currentTimeMillis()
+    val zone = ZoneId.systemDefault()
+
+    // A new milestone is recorded as celebrated as soon as it shows, together with any smaller ones
+    // reached at the same time, so each is celebrated exactly once.
+    var celebration by rememberSaveable { mutableStateOf<Milestone?>(null) }
+    val stats = remember(entries, nowMillis / 60_000, zone) { historyStats(entries, nowMillis, zone) }
+    LaunchedEffect(stats, celebrated) {
+        val next = milestoneToCelebrate(stats, celebrated) ?: return@LaunchedEffect
+        celebration = next
+        onCelebrated(celebrated + reachedMilestones(stats))
+    }
+
     HomeContent(
         entries = entries,
-        nowMillis = System.currentTimeMillis(),
-        zone = ZoneId.systemDefault(),
+        nowMillis = nowMillis,
+        zone = zone,
+        celebration = celebration,
+        onDismissCelebration = {
+            tap()
+            celebration = null
+        },
         isDarkTheme = isDarkTheme,
         onToggleTheme = {
             tap()
@@ -139,7 +187,7 @@ fun HomeScreen(
     )
 }
 
-/** Stateless dashboard; [nowMillis] and [zone] decide the greeting and "today" so screenshots are stable. */
+/** Stateless dashboard; [nowMillis] and [zone] decide the scene, greeting and "today" so screenshots are stable. */
 @Composable
 internal fun HomeContent(
     entries: List<HistoryEntry>,
@@ -152,12 +200,28 @@ internal fun HomeContent(
     onOpenHistory: () -> Unit,
     onSpeak: (String) -> Unit,
     contentPadding: PaddingValues,
+    celebration: Milestone? = null,
+    onDismissCelebration: () -> Unit = {},
 ) {
     val stats = remember(entries, nowMillis, zone) { historyStats(entries, nowMillis, zone) }
     val now = remember(nowMillis, zone) { Instant.ofEpochMilli(nowMillis).atZone(zone) }
+    val time = TimeOfDay.from(now.hour)
+    val scroll = rememberScrollState()
 
     val hero: @Composable () -> Unit = { HeroCard(onStart = onStartTranslate) }
     val speak: @Composable () -> Unit = { SpeakCard(onClick = onOpenSpeak) }
+    val cheer: @Composable () -> Unit = {
+        AnimatedVisibility(
+            visible = celebration != null,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
+            // Keeps the last milestone on screen while the card animates away.
+            var shown by remember { mutableStateOf(celebration) }
+            if (celebration != null) shown = celebration
+            shown?.let { CelebrationCard(milestone = it, onDismiss = onDismissCelebration) }
+        }
+    }
     val activity: @Composable () -> Unit = { ActivitySection(stats = stats, today = now.toLocalDate()) }
     val recent: @Composable () -> Unit = {
         RecentSection(
@@ -169,11 +233,17 @@ internal fun HomeContent(
         )
     }
 
+    // The scene runs edge to edge under the status bar; everything else keeps the scaffold's insets.
+    val layoutDirection = LocalLayoutDirection.current
+    val topInset = contentPadding.calculateTopPadding()
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .warmBackdrop()
-            .padding(contentPadding),
+            .padding(
+                start = contentPadding.calculateStartPadding(layoutDirection),
+                end = contentPadding.calculateEndPadding(layoutDirection),
+                bottom = contentPadding.calculateBottomPadding(),
+            ),
     ) {
         val twoColumns = maxWidth >= TwoColumnMinWidth
         val gestures: @Composable () -> Unit = {
@@ -182,22 +252,42 @@ internal fun HomeContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(scroll),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(topInset + if (twoColumns) SceneHeightWide else SceneHeight),
+            ) {
+                SkyScene(
+                    time = time,
+                    parallax = { scroll.value.toFloat() },
+                    fadeInto = MaterialTheme.colorScheme.background,
+                    modifier = Modifier.matchParentSize(),
+                )
+                Header(
+                    hour = now.hour,
+                    date = now.toLocalDate(),
+                    sky = skyPalette(time),
+                    isDarkTheme = isDarkTheme,
+                    onToggleTheme = onToggleTheme,
+                    modifier = Modifier
+                        .widthIn(max = if (twoColumns) 1120.dp else 640.dp)
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .padding(start = PagePadding, end = PagePadding, top = topInset + 14.dp),
+                )
+            }
             Column(
                 modifier = Modifier
                     .widthIn(max = if (twoColumns) 1120.dp else 640.dp)
                     .fillMaxWidth()
-                    .padding(start = PagePadding, end = PagePadding, top = 16.dp, bottom = 28.dp),
+                    // The first card sits on the meadow, overlapping the bottom of the scene.
+                    .pullUp(CardOverlap)
+                    .padding(start = PagePadding, end = PagePadding, bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(22.dp),
             ) {
-                Header(
-                    hour = now.hour,
-                    date = now.toLocalDate(),
-                    isDarkTheme = isDarkTheme,
-                    onToggleTheme = onToggleTheme,
-                )
                 if (twoColumns) {
                     Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(22.dp)) {
@@ -205,7 +295,14 @@ internal fun HomeContent(
                             speak()
                             gestures()
                         }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+                        // Starts below the meadow: only the hero card rests on the scene.
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .padding(top = CardOverlap),
+                            verticalArrangement = Arrangement.spacedBy(22.dp),
+                        ) {
+                            cheer()
                             activity()
                             recent()
                         }
@@ -214,6 +311,7 @@ internal fun HomeContent(
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         hero()
                         speak()
+                        cheer()
                     }
                     activity()
                     gestures()
@@ -224,9 +322,27 @@ internal fun HomeContent(
     }
 }
 
-/** A greeting for the time of day over today's date, with the light/dark switch beside it. */
+private val SceneHeight = 300.dp
+private val SceneHeightWide = 260.dp
+private val CardOverlap = 64.dp
+
+/** Moves the content up by [amount] and gives that space back, so nothing below is left with a gap. */
+private fun Modifier.pullUp(amount: Dp): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val shift = amount.roundToPx()
+    layout(placeable.width, (placeable.height - shift).coerceAtLeast(0)) { placeable.place(0, -shift) }
+}
+
+/** A greeting for the time of day over today's date, written on the sky, with the light/dark switch. */
 @Composable
-private fun Header(hour: Int, date: LocalDate, isDarkTheme: Boolean, onToggleTheme: () -> Unit) {
+private fun Header(
+    hour: Int,
+    date: LocalDate,
+    sky: SkyPalette,
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val greeting = when (hour) {
         in 5..10 -> R.string.home_greeting_morning
         in 11..13 -> R.string.home_greeting_noon
@@ -234,17 +350,17 @@ private fun Header(hour: Int, date: LocalDate, isDarkTheme: Boolean, onToggleThe
         else -> R.string.home_greeting_evening
     }
     val weekday = stringArrayResource(R.array.weekday_long)[date.dayOfWeek.value - 1]
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = stringResource(R.string.home_date, weekday, date.dayOfMonth, date.monthValue).uppercase(),
                 style = EyebrowStyle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = sky.onSky,
             )
             Text(
                 text = stringResource(greeting),
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.onBackground,
+                style = MaterialTheme.typography.displaySmall,
+                color = sky.onSky,
                 modifier = Modifier.semantics { heading() },
             )
         }
@@ -253,8 +369,8 @@ private fun Header(hour: Int, date: LocalDate, isDarkTheme: Boolean, onToggleThe
             onClick = onToggleTheme,
             modifier = Modifier.size(48.dp),
             colors = IconButtonDefaults.filledTonalIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                contentColor = MaterialTheme.colorScheme.onSurface,
+                containerColor = sky.onSky.copy(alpha = 0.16f),
+                contentColor = sky.onSky,
             ),
         ) {
             Icon(
@@ -270,96 +386,133 @@ private fun Header(hour: Int, date: LocalDate, isDarkTheme: Boolean, onToggleThe
 }
 
 /**
- * The screen's one loud moment: a fired-clay card that starts a translation. Rings of lantern
- * light and an open palm sit on the right; they are decoration and carry no meaning of their own.
+ * The screen's main action, on a paper card resting on the meadow: the hand in a little night
+ * sky, what the camera does, and the button that opens it.
  */
 @Composable
 private fun HeroCard(onStart: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.extraLarge)
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(HeroPalette.Top, HeroPalette.Bottom),
-                    start = Offset.Zero,
-                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
-                ),
-            )
-            .drawBehind {
-                // Centred on the palm, which sits in the lower right.
-                val centre = Offset(size.width - 82.dp.toPx(), size.height - 84.dp.toPx())
-                listOf(62, 96, 132, 170, 210).forEachIndexed { index, radius ->
-                    drawCircle(
-                        color = HeroPalette.Ring,
-                        radius = radius.dp.toPx(),
-                        center = centre,
-                        alpha = 0.3f - index * 0.055f,
-                        style = Stroke(width = 1.5.dp.toPx()),
+    val press = remember { MutableInteractionSource() }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shadowElevation = 10.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(84.dp)
+                        .clip(MaterialTheme.shapes.large)
+                        .background(StagePalette.Ink),
+                ) {
+                    NightStage(dimmed = false, modifier = Modifier.matchParentSize())
+                    HandGlyph(
+                        pose = HandPose.OpenPalm,
+                        bone = StagePalette.Guide,
+                        joint = StagePalette.OnInk,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .padding(10.dp),
                     )
                 }
-            },
-    ) {
-        Column(modifier = Modifier.padding(start = 24.dp, top = 22.dp, end = 20.dp, bottom = 22.dp)) {
-            Text(
-                text = stringResource(R.string.home_hero_eyebrow).uppercase(),
-                style = EyebrowStyle,
-                color = HeroPalette.OnHeroMuted,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = stringResource(R.string.home_hero_title),
-                style = MaterialTheme.typography.headlineMedium,
-                color = HeroPalette.OnHero,
-                modifier = Modifier.semantics { heading() },
-            )
-            Row(verticalAlignment = Alignment.Bottom) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(top = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = stringResource(R.string.home_hero_eyebrow).uppercase(),
+                        style = EyebrowStyle,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = stringResource(R.string.home_hero_title),
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.semantics { heading() },
+                    )
                     Text(
                         text = stringResource(R.string.home_hero_body),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = HeroPalette.OnHeroMuted,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Button(
-                        onClick = onStart,
-                        modifier = Modifier.heightIn(min = 52.dp),
-                        shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = HeroPalette.OnHero,
-                            contentColor = HeroPalette.Bottom,
-                        ),
-                        contentPadding = PaddingValues(start = 18.dp, end = 22.dp),
-                    ) {
-                        Icon(ImageVector.vectorResource(R.drawable.ic_videocam), contentDescription = null)
-                        Spacer(Modifier.width(10.dp))
-                        Text(stringResource(R.string.home_hero_action))
-                    }
                 }
-                HandGlyph(
-                    pose = HandPose.OpenPalm,
-                    bone = HeroPalette.Ring,
-                    joint = HeroPalette.OnHero,
-                    strokeWidth = 3.dp,
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .size(124.dp),
-                )
+            }
+            Button(
+                onClick = onStart,
+                interactionSource = press,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)
+                    .pressBounce(press),
+                shape = CircleShape,
+            ) {
+                Icon(ImageVector.vectorResource(R.drawable.ic_videocam), contentDescription = null)
+                Spacer(Modifier.width(10.dp))
+                Text(stringResource(R.string.home_hero_action), style = MaterialTheme.typography.titleMedium)
             }
         }
+    }
+}
+
+/** A small congratulation for [milestone], with leaves thrown up as it appears. */
+@Composable
+private fun CelebrationCard(milestone: Milestone, onDismiss: () -> Unit) {
+    val (title, body) = when (milestone) {
+        Milestone.STREAK_3 -> R.string.milestone_streak_3_title to R.string.milestone_streak_3_body
+        Milestone.STREAK_7 -> R.string.milestone_streak_7_title to R.string.milestone_streak_7_body
+        Milestone.STREAK_30 -> R.string.milestone_streak_30_title to R.string.milestone_streak_30_body
+        Milestone.TOTAL_10 -> R.string.milestone_total_10_title to R.string.milestone_total_10_body
+        Milestone.TOTAL_50 -> R.string.milestone_total_50_title to R.string.milestone_total_50_body
+        Milestone.TOTAL_100 -> R.string.milestone_total_100_title to R.string.milestone_total_100_body
+    }
+    val leafColors = listOf(
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.tertiary,
+        Color(0xFF9CCB7A),
+        Color(0xFFF2C14E),
+    )
+    Box(contentAlignment = Alignment.TopCenter) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 18.dp, end = 8.dp, top = 14.dp, bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(text = stringResource(title), style = MaterialTheme.typography.headlineSmall)
+                    Text(text = stringResource(body), style = MaterialTheme.typography.bodyMedium)
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onTertiaryContainer),
+                ) {
+                    Text(stringResource(R.string.milestone_dismiss))
+                }
+            }
+        }
+        // Outside the card's clip, so the leaves fly over the page.
+        LeafBurstEffect(trigger = milestone.ordinal + 1, colors = leafColors, modifier = Modifier.size(1.dp))
     }
 }
 
 /** The other way to be heard: type or pick a phrase. A quieter card than the hero, in honey. */
 @Composable
 private fun SpeakCard(onClick: () -> Unit) {
+    val press = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        interactionSource = press,
+        modifier = Modifier
+            .fillMaxWidth()
+            .pressBounce(press),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -519,8 +672,18 @@ private fun WeekBars(week: List<DayCount>, today: LocalDate) {
     val longNames = stringArrayResource(R.array.weekday_long)
     val shortNames = stringArrayResource(R.array.weekday_short)
     val max = week.maxOf { it.count }.coerceAtLeast(1)
+    // Bars grow up from the baseline one after another when the chart appears.
+    val growth = remember { List(week.size) { Animatable(0f) } }
+    LaunchedEffect(Unit) {
+        growth.forEachIndexed { index, bar ->
+            launch {
+                delay(index * 70L)
+                bar.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessLow))
+            }
+        }
+    }
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-        week.forEach { day ->
+        week.forEachIndexed { index, day ->
             val weekdayIndex = day.date.dayOfWeek.value - 1
             val isToday = day.date == today
             val description = stringResource(R.string.home_week_bar_description, longNames[weekdayIndex], day.count)
@@ -541,7 +704,13 @@ private fun WeekBars(week: List<DayCount>, today: LocalDate) {
                         modifier = Modifier
                             .width(26.dp)
                             // An empty day keeps a sliver on the baseline so the week still reads as seven days.
-                            .height(if (day.count == 0) 3.dp else maxOf(8.dp, BarAreaHeight * (day.count / max.toFloat())))
+                            .height(
+                                if (day.count == 0) {
+                                    3.dp
+                                } else {
+                                    maxOf(8.dp, BarAreaHeight * (day.count / max.toFloat())) * growth[index].value.coerceAtLeast(0f)
+                                },
+                            )
                             .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
                             .background(
                                 if (day.count == 0) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.primary,
@@ -598,9 +767,12 @@ private fun GestureCard(gesture: SupportedGesture, onSpeak: (String) -> Unit) {
     val phrase = stringResource(gesture.phraseRes)
     val name = stringResource(gesture.nameRes)
     val description = stringResource(R.string.home_gesture_description, name, phrase)
+    val press = remember { MutableInteractionSource() }
     Surface(
         onClick = { onSpeak(phrase) },
+        interactionSource = press,
         modifier = Modifier
+            .pressBounce(press)
             .width(150.dp)
             .clearAndSetSemantics { contentDescription = description },
         shape = MaterialTheme.shapes.large,

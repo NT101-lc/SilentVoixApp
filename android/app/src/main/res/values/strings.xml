@@ -102,6 +102,19 @@
     <string name="home_section_recent">Gần đây</string>
     <string name="home_recent_all">Xem tất cả</string>
     <string name="home_recent_empty">Những câu bạn vừa dịch sẽ hiện ở đây để đọc lại nhanh.</string>
+    <string name="milestone_streak_3_title">Ba ngày liền!</string>
+    <string name="milestone_streak_3_body">Bạn đã trò chuyện cùng SilentVoix ba ngày liên tiếp.</string>
+    <string name="milestone_streak_7_title">Tròn một tuần!</string>
+    <string name="milestone_streak_7_body">Bảy ngày liên tiếp, đều đặn như nắng sớm.</string>
+    <string name="milestone_streak_30_title">Một tháng bền bỉ!</string>
+    <string name="milestone_streak_30_body">Ba mươi ngày liên tiếp. Thật đáng nể.</string>
+    <string name="milestone_total_10_title">Mười câu đầu tiên!</string>
+    <string name="milestone_total_10_body">Bạn đã nói mười câu qua SilentVoix.</string>
+    <string name="milestone_total_50_title">Năm mươi câu rồi!</string>
+    <string name="milestone_total_50_body">Mỗi câu là một lần được lắng nghe.</string>
+    <string name="milestone_total_100_title">Một trăm câu!</string>
+    <string name="milestone_total_100_body">Một trăm lần trò chuyện. Cảm ơn bạn đã đồng hành.</string>
+    <string name="milestone_dismiss">Tuyệt quá</string>
     <string-array name="weekday_long">
         <item>Thứ Hai</item>
         <item>Thứ Ba</item>

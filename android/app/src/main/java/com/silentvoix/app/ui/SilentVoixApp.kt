@@ -1,6 +1,20 @@
 package com.silentvoix.app.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import com.silentvoix.app.ui.scene.TimeOfDay
+import com.silentvoix.app.ui.scene.paperGrain
+import com.silentvoix.app.ui.scene.skyPalette
+import java.time.LocalTime
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -127,7 +141,12 @@ fun SilentVoixApp() {
         ThemeMode.DARK -> true
     }
 
-    SilentVoixTheme(themeMode = settings.themeMode) {
+    // The home screen is painted right under the status bar: its icons follow the sky, not the theme.
+    val homeSkyIsLight = skyPalette(TimeOfDay.from(LocalTime.now().hour)).isLight
+    SilentVoixTheme(
+        themeMode = settings.themeMode,
+        lightStatusBars = if (destination == AppDestination.HOME) homeSkyIsLight else null,
+    ) {
         val tap = rememberHapticTap(settings.haptics)
         AppShell(
             destination = destination,
@@ -137,9 +156,20 @@ fun SilentVoixApp() {
             },
             snackbarHostState = snackbarHostState,
         ) { contentPadding ->
-            // Keeps each tab's saveable state (e.g. history filters, a typed draft) while switching tabs.
-            screenStateHolder.SaveableStateProvider(destination.name) {
-                when (destination) {
+            // Tabs slide a little towards the one chosen while they cross-fade. Each keeps its saveable
+            // state (history filters, a typed draft) while switching.
+            AnimatedContent(
+                targetState = destination,
+                transitionSpec = {
+                    val forward = targetState.ordinal > initialState.ordinal
+                    val shift = { width: Int -> if (forward) width / 12 else -width / 12 }
+                    (fadeIn(tween(260, delayMillis = 60)) + slideInHorizontally(tween(320)) { shift(it) }) togetherWith
+                        (fadeOut(tween(140)) + slideOutHorizontally(tween(320)) { -shift(it) })
+                },
+                label = "destination",
+            ) { target ->
+            screenStateHolder.SaveableStateProvider(target.name) {
+                when (target) {
                     AppDestination.HOME -> HomeScreen(
                         historyRepository = app.historyRepository,
                         isDarkTheme = isDark,
@@ -156,6 +186,12 @@ fun SilentVoixApp() {
                         onOpenHistory = { destination = AppDestination.HISTORY },
                         hapticsEnabled = settings.haptics,
                         onSpeak = { speak(it, true) },
+                        celebrated = settings.celebratedMilestones,
+                        onCelebrated = { milestones ->
+                            app.appScope.launch {
+                                app.settingsRepository.update { it.copy(celebratedMilestones = milestones) }
+                            }
+                        },
                         contentPadding = contentPadding,
                     )
                     AppDestination.TRANSLATE -> TranslateScreen(
@@ -211,6 +247,7 @@ fun SilentVoixApp() {
                         contentPadding = contentPadding,
                     )
                 }
+            }
             }
         }
     }
@@ -272,8 +309,11 @@ internal fun AppShell(
             }
         },
     ) {
+        // Transparent over the navigation scaffold's page colour, with paper grain between the two.
+        val grainInk = MaterialTheme.colorScheme.onBackground
         Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
+            modifier = Modifier.paperGrain(ink = grainInk, alpha = if (grainInk.luminance() > 0.5f) 0.05f else 0.06f),
+            containerColor = Color.Transparent,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             contentWindowInsets = contentInsets,
             content = content,

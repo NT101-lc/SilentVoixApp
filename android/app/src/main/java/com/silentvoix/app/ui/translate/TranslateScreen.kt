@@ -87,6 +87,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.silentvoix.app.R
+import com.silentvoix.app.ui.scene.NightStage
 import com.silentvoix.app.recognition.HandPose
 import com.silentvoix.app.recognition.Recognition
 import com.silentvoix.app.recognition.RecognitionFailure
@@ -406,7 +407,7 @@ private fun CaptureStage(
         if (session.isRunning) {
             camera(Modifier.fillMaxSize())
         } else {
-            LanternGlow(dimmed = blocking, modifier = Modifier.fillMaxSize())
+            NightStage(dimmed = blocking, modifier = Modifier.fillMaxSize())
         }
 
         HandFramingGuide(
@@ -474,22 +475,6 @@ private const val FrameSideInset = 0.16f
 private const val FrameTopInset = 0.1f
 private const val FrameBottomInset = 0.3f
 private const val FrameBottomInsetBlocking = 0.1f
-
-/** Warm light pooled where the hand goes, so the stage is inviting before the camera is on. */
-@Composable
-private fun LanternGlow(dimmed: Boolean, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val centre = Offset(size.width / 2f, size.height * (FrameTopInset + (1f - FrameBottomInset)) / 2f)
-        drawRect(
-            brush = Brush.radialGradient(
-                colors = listOf(StagePalette.Glow, Color.Transparent),
-                center = centre,
-                radius = size.maxDimension * 0.62f,
-            ),
-            alpha = if (dimmed) 0.45f else 1f,
-        )
-    }
-}
 
 /** The idle stage's illustration: an open palm sitting in the framing guide. Decorative. */
 @Composable

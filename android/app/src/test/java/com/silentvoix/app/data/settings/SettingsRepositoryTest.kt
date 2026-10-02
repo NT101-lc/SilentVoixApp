@@ -4,6 +4,8 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
+import com.silentvoix.app.data.progress.Milestone
 import com.silentvoix.app.speech.SpeechRate
 import com.silentvoix.app.ui.settings.AppSettings
 import com.silentvoix.app.ui.theme.ThemeMode
@@ -67,5 +69,26 @@ class SettingsRepositoryTest {
 
         assertEquals(ThemeMode.SYSTEM, settings.themeMode)
         assertEquals(SpeechRate.MAX, settings.speechRate)
+    }
+
+    @Test
+    fun `celebrated milestones are remembered across restarts`() = runBlocking {
+        SettingsRepository(openStore()).update {
+            it.copy(celebratedMilestones = setOf(Milestone.STREAK_3, Milestone.TOTAL_10))
+        }
+        scopes.forEach { it.cancel() } // "process death": the first store is gone.
+
+        assertEquals(
+            setOf(Milestone.STREAK_3, Milestone.TOTAL_10),
+            SettingsRepository(openStore()).settings.first().celebratedMilestones,
+        )
+    }
+
+    @Test
+    fun `an unknown stored milestone is ignored, not a crash`() = runBlocking {
+        val store = openStore()
+        store.edit { it[stringSetPreferencesKey("celebrated_milestones")] = setOf("STREAK_3", "STREAK_9000") }
+
+        assertEquals(setOf(Milestone.STREAK_3), SettingsRepository(store).settings.first().celebratedMilestones)
     }
 }

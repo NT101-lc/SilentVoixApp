@@ -1,5 +1,6 @@
 package com.silentvoix.app.ui.settings
 
+import com.silentvoix.app.data.progress.Milestone
 import com.silentvoix.app.speech.SpeechRate
 import com.silentvoix.app.ui.theme.ThemeMode
 
@@ -10,4 +11,6 @@ data class AppSettings(
     val autoSpeak: Boolean = false,
     val speechRate: Float = SpeechRate.DEFAULT,
     val haptics: Boolean = true,
+    /** Milestones the home screen has already celebrated, so each is shown once. */
+    val celebratedMilestones: Set<Milestone> = emptySet(),
 )

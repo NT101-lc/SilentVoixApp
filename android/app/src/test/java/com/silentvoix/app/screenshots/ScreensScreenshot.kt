@@ -27,6 +27,7 @@ import com.silentvoix.app.data.backend.BackendStatus
 import com.silentvoix.app.data.backend.DatabaseState
 import com.silentvoix.app.data.history.HistoryEntry
 import com.silentvoix.app.data.history.HistoryUiState
+import com.silentvoix.app.data.progress.Milestone
 import com.silentvoix.app.recognition.HandPose
 import com.silentvoix.app.recognition.Recognition
 import com.silentvoix.app.recognition.TranslateSession
@@ -107,11 +108,17 @@ class ScreensScreenshot {
     )
 
     @Composable
-    private fun Home(dark: Boolean = false, entries: List<HistoryEntry> = busyWeek, padding: PaddingValues = PaddingValues()) =
-        HomeContent(
-            entries = entries, nowMillis = NOW, zone = ZONE, isDarkTheme = dark, onToggleTheme = {},
-            onStartTranslate = {}, onOpenSpeak = {}, onOpenHistory = {}, onSpeak = {}, contentPadding = padding,
-        )
+    private fun Home(
+        dark: Boolean = false,
+        entries: List<HistoryEntry> = busyWeek,
+        padding: PaddingValues = PaddingValues(),
+        hour: Int = 16,
+        celebration: Milestone? = null,
+    ) = HomeContent(
+        entries = entries, nowMillis = at(hour), zone = ZONE, isDarkTheme = dark, onToggleTheme = {},
+        onStartTranslate = {}, onOpenSpeak = {}, onOpenHistory = {}, onSpeak = {}, contentPadding = padding,
+        celebration = celebration,
+    )
 
     @Composable
     private fun Speak(category: PhraseCategory, draft: String = "", saved: List<String> = emptyList()) = SpeakContent(
@@ -120,6 +127,11 @@ class ScreensScreenshot {
     )
 
     @Test fun homeLight() = shot("home_light") { Home() }
+    @Test fun homeDawn() = shot("home_dawn_light") { Home(hour = 6) }
+    @Test fun homeDusk() = shot("home_dusk_light") { Home(hour = 17) }
+    @Test fun homeNightLight() = shot("home_night_light") { Home(hour = 21) }
+    @Test fun homeNightDark() = shot("home_night_dark", ThemeMode.DARK) { Home(dark = true, hour = 21) }
+    @Test fun homeCelebration() = shot("home_celebration_light") { Home(celebration = Milestone.STREAK_3) }
     @Test fun homeDark() = shot("home_dark", ThemeMode.DARK) { Home(dark = true) }
     @Test fun homeNewUser() = shot("home_new_user_light") { Home(entries = emptyList()) }
     @Test @Config(qualifiers = "w411dp-h1700dp-xxhdpi")
@@ -202,6 +214,9 @@ private val heldUpPalm = HandPose(
 private val ZONE: ZoneId = ZoneId.of("Asia/Ho_Chi_Minh")
 private val NOW: Long = LocalDateTime.of(2026, 9, 29, 16, 45).atZone(ZONE).toInstant().toEpochMilli()
 private const val HOUR = 3_600_000L
+
+/** NOW's day at [hour]:45, to paint the home scene at other times of day. */
+private fun at(hour: Int): Long = LocalDateTime.of(2026, 9, 29, hour, 45).atZone(ZONE).toInstant().toEpochMilli()
 
 private val sampleHistory = HistoryUiState.Loaded(
     listOf(
