@@ -89,6 +89,9 @@ explained in [`docs/schema.md`](docs/schema.md). They are applied when the servi
 `SILENTVOIX_DATABASE_MIGRATE_ON_STARTUP=false` to skip that. A failed migration is logged (without
 the URL) and the service keeps running, reporting `DEGRADED`.
 
+Two accounts for development and demos (`admin@silentvoix.local` as admin, `user@silentvoix.local`
+as user) come from `scripts/seed_accounts.sql`, which you run by hand; see the schema doc.
+
 `database.schemaVersion` in the health response is the applied version. `status` is `UP` only when
 the database is reachable **and** at the newest bundled script.
 

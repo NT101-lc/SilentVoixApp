@@ -123,6 +123,18 @@ class SchemaConstraintsTest {
         }
 
         @Test
+        void aNewUserIsAnOrdinaryUser() throws SQLException {
+            assertThat(scalar("SELECT role FROM app_user WHERE id = ?", newUser())).isEqualTo("user");
+        }
+
+        @Test
+        void aRoleIsUserOrAdmin() throws SQLException {
+            UUID user = newUser();
+            assertThat(update("UPDATE app_user SET role = 'admin' WHERE id = ?", user)).isEqualTo(1);
+            assertRejected(CHECK, "UPDATE app_user SET role = 'owner' WHERE id = ?", user);
+        }
+
+        @Test
         void anEmailIdentityMustBeLowercase() throws SQLException {
             assertRejected(CHECK, "INSERT INTO user_identity (user_id, provider, subject) VALUES (?, 'email', 'Lan@Example.com')",
                     newUser());

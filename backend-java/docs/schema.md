@@ -10,6 +10,7 @@ newest bundled script.
 |---|---|
 | `V1__initial_schema.sql` | All tables, constraints, indexes and the `updated_at` trigger |
 | `V2__seed_stock_gestures.sql` | The 7 stock MediaPipe gestures as signs, and that model as the active version |
+| `V3__add_user_role.sql` | `app_user.role`: `user` (default) or `admin` |
 
 Add a change as a new `V<n>__<what>.sql`. Never edit a script that has run anywhere.
 
@@ -60,7 +61,7 @@ same user, so nothing is lost.
 
 | Table | Purpose | Key rules |
 |---|---|---|
-| `app_user` | One person | `display_name` optional, 1–80 chars |
+| `app_user` | One person | `display_name` optional, 1–80 chars; `role` is `user` (default) or `admin` |
 | `user_identity` | A verified way to sign in: `email` (OTP) or `google` | `UNIQUE (provider, subject)`; e-mail subjects are lower case |
 | `device` | An installation of the app | `platform` in android / ios / web |
 | `refresh_token` | Long-lived session for one device | Hash only, unique; expires after it is created |
@@ -106,6 +107,23 @@ These mirror what the app keeps on the device today (DataStore settings, Room hi
 | A device | Its sessions go. The user's history stays, with `device_id` cleared. |
 | A sign | Refused while any sample or model label refers to it. |
 
+## Accounts for development and demos
+
+`backend-java/scripts/seed_accounts.sql` creates two accounts, each with a verified e-mail identity
+and default settings:
+
+| E-mail | Role |
+|---|---|
+| `admin@silentvoix.local` | `admin` |
+| `user@silentvoix.local` | `user` |
+
+It is deliberately not a migration, so production never gets them by itself. Run it on a migrated
+database: paste it into Neon's SQL Editor, or
+`psql "postgresql://ROLE:PASSWORD@HOST/DB?sslmode=require" -f backend-java/scripts/seed_accounts.sql`.
+Running it again changes nothing; an account that already has one of these addresses is reused and
+given its role. There is no sign-in API yet: these accounts exist in the database for when
+authentication lands. Nothing grants `admin` from the app.
+
 ## Tests
 
 `src/test/java/com/silentvoix/backend/database/` runs against a real PostgreSQL 17 in Docker
@@ -113,5 +131,7 @@ These mirror what the app keeps on the device today (DataStore settings, Room hi
 
 - `SchemaMigratorTest`: an empty database migrates to the newest script, a second run applies
   nothing, and the seed holds the 7 gestures and their active model.
+- `SeedAccountsTest`: the seed script creates exactly the two accounts, is idempotent, and reuses
+  an existing account with the same e-mail.
 - `SchemaConstraintsTest`: one test per rule above, each storing something the app must never
   store and expecting PostgreSQL to refuse it.

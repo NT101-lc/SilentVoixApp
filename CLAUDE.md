@@ -35,7 +35,7 @@ Backend (`backend-java/`):
   `SILENTVOIX_DATABASE_USERNAME`, `SILENTVOIX_DATABASE_PASSWORD`, optionally loaded from a
   git-ignored `backend-java/.env` (see `.env.example`). Never log or return the URL or password.
 - Schema: Flyway scripts in `src/main/resources/db/migration/` (V1 all tables, V2 seed of the 7
-  stock gestures and their model), documented in `backend-java/docs/schema.md`. Covers anonymous
+  stock gestures and their model, V3 `app_user.role` user/admin), documented in `backend-java/docs/schema.md`. Covers anonymous
   users with identities linked later (email OTP / Google), devices and hashed refresh tokens,
   synced settings / history (`recognition`) / `saved_phrase` with soft delete and an `updated_at`
   trigger, the sign vocabulary, model versions and labels, consented landmark-only `sign_sample`s,
@@ -45,6 +45,9 @@ Backend (`backend-java/`):
   failure is logged by kind only and the app keeps running. Health reports
   `database.schemaVersion`; `status` is `UP` only at the newest bundled script
   (`MigrationScripts.latestVersion()`). Flyway's "Database: <URL>" log line is silenced.
+  `backend-java/scripts/seed_accounts.sql` (not a migration; run by hand, idempotent, tested by
+  `SeedAccountsTest`) creates `admin@silentvoix.local` (admin) and `user@silentvoix.local` (user).
+  There is no sign-in API yet.
 - Deployment: `backend-java/Dockerfile` (JDK 21 build, JRE runtime, non-root; tests are left to
   CI) and `backend-java/railway.json` (Railway: Dockerfile build, health check on
   `/api/v1/health`). Steps for Railway + Neon are in `backend-java/README.md`. `.dockerignore`
