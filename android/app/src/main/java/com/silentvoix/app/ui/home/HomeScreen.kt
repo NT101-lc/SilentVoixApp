@@ -281,7 +281,7 @@ private fun HeroCard(onStart: () -> Unit) {
             .clip(MaterialTheme.shapes.extraLarge)
             .background(
                 Brush.linearGradient(
-                    colors = listOf(HeroPalette.ClayTop, HeroPalette.ClayBottom),
+                    colors = listOf(HeroPalette.Top, HeroPalette.Bottom),
                     start = Offset.Zero,
                     end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
                 ),
@@ -304,13 +304,13 @@ private fun HeroCard(onStart: () -> Unit) {
             Text(
                 text = stringResource(R.string.home_hero_eyebrow).uppercase(),
                 style = EyebrowStyle,
-                color = HeroPalette.OnClayMuted,
+                color = HeroPalette.OnHeroMuted,
             )
             Spacer(Modifier.height(6.dp))
             Text(
                 text = stringResource(R.string.home_hero_title),
                 style = MaterialTheme.typography.headlineMedium,
-                color = HeroPalette.OnClay,
+                color = HeroPalette.OnHero,
                 modifier = Modifier.semantics { heading() },
             )
             Row(verticalAlignment = Alignment.Bottom) {
@@ -323,15 +323,15 @@ private fun HeroCard(onStart: () -> Unit) {
                     Text(
                         text = stringResource(R.string.home_hero_body),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = HeroPalette.OnClayMuted,
+                        color = HeroPalette.OnHeroMuted,
                     )
                     Button(
                         onClick = onStart,
                         modifier = Modifier.heightIn(min = 52.dp),
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = HeroPalette.OnClay,
-                            contentColor = HeroPalette.ClayBottom,
+                            containerColor = HeroPalette.OnHero,
+                            contentColor = HeroPalette.Bottom,
                         ),
                         contentPadding = PaddingValues(start = 18.dp, end = 22.dp),
                     ) {
@@ -343,7 +343,7 @@ private fun HeroCard(onStart: () -> Unit) {
                 HandGlyph(
                     pose = HandPose.OpenPalm,
                     bone = HeroPalette.Ring,
-                    joint = HeroPalette.OnClay,
+                    joint = HeroPalette.OnHero,
                     strokeWidth = 3.dp,
                     modifier = Modifier
                         .padding(start = 8.dp)

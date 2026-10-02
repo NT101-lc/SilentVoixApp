@@ -97,16 +97,20 @@ Android (`android/`):
   backend. `HistoryUiState` (loading/error/loaded) is derived from the Room flow. Room schemas
   are exported to `android/app/schemas/` and committed: bump the version and add a migration
   when the entity changes.
-- UI: Be Vietnam Pro (OFL, `res/font`, licence in `assets/licenses`) for all type. Translate is
+- UI: Lora and Be Vietnam Pro (both OFL, `res/font`, licences in `assets/licenses`). Translate is
   `TranslateScreen` (stateful: session, permission, camera) over a stateless `TranslateContent`
   with a `camera` slot; live captions sit inside the camera stage, controls are a camera-style
   bar (replay / start-stop / auto-speak), and a full-screen caption view is for showing the other
   person. The stage draws the hand's skeleton over the preview: `recognition/HandPose` turns the
   model's landmarks (reported in the unrotated sensor image's frame) upright and maps them onto
-  the centre-cropped, possibly mirrored preview. Palette (`ui/theme/Color.kt`): terracotta
-  primary, honey secondary, sage tertiary for "ready" states, warm cream/cacao neutrals; the
-  stage (`StagePalette`) is cacao with amber guides and the home hero (`HeroPalette`) is fired
-  clay, both the same in light and dark. `SilentVoixTheme` eases every scheme colour when the
+  the centre-cropped, possibly mirrored preview. Palette (`ui/theme/Color.kt`): a hand-painted
+  countryside look (inspired by Japanese animated films; no studio characters or artwork). Day:
+  forest-green primary (the one action colour), sky-blue secondary, tile-red tertiary (favourites,
+  rewards) on warm paper. Night: deep-blue sky, leaf green, lantern orange. The stage
+  (`StagePalette`) is a night sky with firefly-green guides and the home hero (`HeroPalette`) a
+  dusk forest, both the same in light and dark. `PaletteContrastTest` checks every text/background
+  pair in both schemes against WCAG AA (`ui/theme/Contrast.kt`). Type: Lora (OFL) for display and
+  headline styles, Be Vietnam Pro for everything else. `SilentVoixTheme` eases every scheme colour when the
   theme changes; `Modifier.warmBackdrop()` is the glow behind the home screen. `HistoryContent` is the stateless History screen (day-grouped rows, clear-all behind a
   confirmation). Shared pieces:
   `ui/common/ScreenHeader`, `SegmentedControl`. Server status lives in Settings, not on Translate.
@@ -117,7 +121,7 @@ Android (`android/`):
   needed again, label it visibly in the UI.
 - Unit tests (JUnit 4, `app/src/test`) cover `GestureStabilizer`, `TranslateSession`, `HandPose`,
   `SpeechController`, `SettingsRepository` and `PhraseRepository` (against real DataStore files),
-  `HistoryUiState`, `historyStats` and history day labels: `./gradlew testDebugUnitTest`.
+  `HistoryUiState`, `historyStats`, history day labels and palette contrast: `./gradlew testDebugUnitTest`.
 
 Both wrappers are committed (Gradle under `android/`, Maven 3.9.16 `mvnw` under `backend-java/`);
 neither `gradle` nor `mvn` needs to be on the PATH. CI is `.github/workflows/ci.yml`: on pull

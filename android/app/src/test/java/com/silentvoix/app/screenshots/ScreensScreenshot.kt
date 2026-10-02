@@ -180,12 +180,12 @@ class ScreensScreenshot {
     @Test fun settingsDark() = shot("settings_dark", ThemeMode.DARK) { Settings(ThemeMode.DARK) }
 }
 
-/** Stands in for the camera image: a dim, warmly lit room so captions are judged over "video". */
+/** Stands in for the camera image: a dim, lamp-lit room so captions are judged over "video". */
 @Composable
 private fun CameraStandIn(modifier: Modifier) {
     Box(
         modifier.background(
-            Brush.radialGradient(listOf(Color(0xFF8A7263), Color(0xFF3A2C25)), radius = 1100f),
+            Brush.radialGradient(listOf(Color(0xFF7C8A86), Color(0xFF283240)), radius = 1100f),
         ),
     )
 }

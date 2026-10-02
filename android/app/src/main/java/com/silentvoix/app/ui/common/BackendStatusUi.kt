@@ -28,5 +28,5 @@ fun backendStatusColor(status: BackendStatus): Color = when (status) {
     BackendStatus.Checking -> MaterialTheme.colorScheme.outline
     BackendStatus.Unreachable -> MaterialTheme.colorScheme.error
     is BackendStatus.Online ->
-        if (status.database == DatabaseState.UP) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary
+        if (status.database == DatabaseState.UP) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
 }

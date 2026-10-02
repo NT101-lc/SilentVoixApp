@@ -356,8 +356,9 @@ private fun HistoryRow(
                             if (entry.isFavourite) R.drawable.ic_favorite else R.drawable.ic_favorite_border,
                         ),
                         contentDescription = null,
+                        // Favourites wear the tile-red accent, apart from the green of actions.
                         tint = if (entry.isFavourite) {
-                            MaterialTheme.colorScheme.primary
+                            MaterialTheme.colorScheme.tertiary
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         },

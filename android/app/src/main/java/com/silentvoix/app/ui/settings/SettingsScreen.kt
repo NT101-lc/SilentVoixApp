@@ -325,7 +325,7 @@ private fun SpeechStatusRow(status: SpeechStatus, onPreview: () -> Unit) {
         },
     )
     val dot = when (status) {
-        SpeechStatus.Ready -> MaterialTheme.colorScheme.tertiary
+        SpeechStatus.Ready -> MaterialTheme.colorScheme.primary
         SpeechStatus.Initializing -> MaterialTheme.colorScheme.outline
         is SpeechStatus.Unavailable -> MaterialTheme.colorScheme.error
     }
