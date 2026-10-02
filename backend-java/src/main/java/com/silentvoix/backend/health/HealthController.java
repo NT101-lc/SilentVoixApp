@@ -1,6 +1,9 @@
 package com.silentvoix.backend.health;
 
 import java.time.Instant;
+import java.util.Objects;
+
+import com.silentvoix.backend.database.MigrationScripts;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,11 +23,16 @@ class HealthController {
         this.serviceName = serviceName;
     }
 
-    /** Always 200 while the process is serving; database readiness is reported in the body. */
+    /**
+     * Always 200 while the process is serving; readiness is in the body. {@code UP} needs the
+     * database reachable and migrated to the latest script this build ships.
+     */
     @GetMapping("/health")
     HealthResponse health() {
         DatabaseHealth database = databaseHealthChecker.check();
-        String status = database.status() == DatabaseHealth.Status.UP ? "UP" : "DEGRADED";
+        boolean ready = database.status() == DatabaseHealth.Status.UP
+                && Objects.equals(database.schemaVersion(), MigrationScripts.latestVersion());
+        String status = ready ? "UP" : "DEGRADED";
         return new HealthResponse(status, serviceName, Instant.now().toString(), database);
     }
 }

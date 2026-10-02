@@ -11,13 +11,20 @@ import java.time.Instant;
 import javax.sql.DataSource;
 
 import com.jayway.jsonpath.JsonPath;
+import com.silentvoix.backend.database.MigrationScripts;
+import com.silentvoix.backend.database.TestDatabase;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -56,14 +63,68 @@ class HealthEndpointTest {
         }
     }
 
-    /** A reachable, valid database. */
+    /** A reachable database migrated to the latest bundled script. */
     @Nested
-    @SpringBootTest(properties = "silentvoix.database.url=")
+    @SpringBootTest(properties = {"silentvoix.database.url=", "silentvoix.database.migrate-on-startup=false"})
     @AutoConfigureMockMvc
     class Up {
 
         @TestConfiguration
         static class HealthyDatabase {
+            @Bean
+            DataSource dataSource() {
+                return FakeDataSource.migratedTo(MigrationScripts.latestVersion());
+            }
+        }
+
+        @Autowired
+        MockMvc mvc;
+
+        @Test
+        void upWithLatencySchemaVersionAndNoError() throws Exception {
+            assertContract(mvc.perform(get("/api/v1/health")))
+                    .andExpect(jsonPath("$.status").value("UP"))
+                    .andExpect(jsonPath("$.database.status").value("UP"))
+                    .andExpect(jsonPath("$.database.latencyMs").isNumber())
+                    .andExpect(jsonPath("$.database.schemaVersion").value(MigrationScripts.latestVersion()))
+                    .andExpect(jsonPath("$.database.error").value(nullValue()));
+        }
+    }
+
+    /** Reachable, but the schema is behind the scripts this build ships: not ready to serve data. */
+    @Nested
+    @SpringBootTest(properties = {"silentvoix.database.url=", "silentvoix.database.migrate-on-startup=false"})
+    @AutoConfigureMockMvc
+    class SchemaBehind {
+
+        @TestConfiguration
+        static class OldSchema {
+            @Bean
+            DataSource dataSource() {
+                return FakeDataSource.migratedTo("1");
+            }
+        }
+
+        @Autowired
+        MockMvc mvc;
+
+        @Test
+        void degradedWhileTheDatabaseItselfIsUp() throws Exception {
+            assertContract(mvc.perform(get("/api/v1/health")))
+                    .andExpect(jsonPath("$.status").value("DEGRADED"))
+                    .andExpect(jsonPath("$.database.status").value("UP"))
+                    .andExpect(jsonPath("$.database.schemaVersion").value("1"));
+        }
+    }
+
+    /** Never migrated (no Flyway history table): reported as no schema at all. */
+    @Nested
+    @SpringBootTest(properties = {"silentvoix.database.url=", "silentvoix.database.migrate-on-startup=false"})
+    @AutoConfigureMockMvc
+    class NoSchema {
+
+        @TestConfiguration
+        static class EmptyDatabase {
             @Bean
             DataSource dataSource() {
                 return FakeDataSource.healthy();
@@ -74,12 +135,50 @@ class HealthEndpointTest {
         MockMvc mvc;
 
         @Test
-        void upWithLatencyAndNoError() throws Exception {
+        void degradedWithANullSchemaVersion() throws Exception {
+            assertContract(mvc.perform(get("/api/v1/health")))
+                    .andExpect(jsonPath("$.status").value("DEGRADED"))
+                    .andExpect(jsonPath("$.database.status").value("UP"))
+                    .andExpect(jsonPath("$.database.schemaVersion").value(nullValue()));
+        }
+    }
+
+    /**
+     * End to end: a real PostgreSQL, configured exactly as on Railway (URL, user, password). Startup
+     * migrates it, and health then reports UP at the latest schema version.
+     */
+    @Nested
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    @ExtendWith(OutputCaptureExtension.class)
+    class RealDatabase {
+
+        private static final TestDatabase.Database DATABASE = TestDatabase.fresh();
+
+        @DynamicPropertySource
+        static void database(DynamicPropertyRegistry registry) {
+            registry.add("silentvoix.database.url", DATABASE::jdbcUrl);
+            registry.add("silentvoix.database.username", DATABASE::username);
+            registry.add("silentvoix.database.password", DATABASE::password);
+        }
+
+        @Autowired
+        MockMvc mvc;
+
+        @Test
+        void startupMigratesAndHealthIsUp() throws Exception {
             assertContract(mvc.perform(get("/api/v1/health")))
                     .andExpect(jsonPath("$.status").value("UP"))
                     .andExpect(jsonPath("$.database.status").value("UP"))
-                    .andExpect(jsonPath("$.database.latencyMs").isNumber())
-                    .andExpect(jsonPath("$.database.error").value(nullValue()));
+                    .andExpect(jsonPath("$.database.schemaVersion").value(MigrationScripts.latestVersion()));
+        }
+
+        @Test
+        void startupLogsNeverNameTheDatabase(CapturedOutput output) {
+            // Flyway announces the database it connects to; that line must not carry the URL.
+            assertThat(output.toString())
+                    .contains("Database schema at version")
+                    .doesNotContain(DATABASE.jdbcUrl(), "jdbc:postgresql://");
         }
     }
 

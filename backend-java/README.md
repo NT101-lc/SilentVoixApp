@@ -72,13 +72,25 @@ The Maven wrapper (`mvnw`, Maven 3.9.16) is committed, so Maven does not need to
 
 ```bash
 cd backend-java
-./mvnw test              # health endpoint + database readiness tests
+./mvnw test              # health, migrations and schema rules (needs Docker for PostgreSQL)
 ./mvnw spring-boot:run
 curl http://localhost:8081/api/v1/health
 ```
 
-The tests need no database: the DOWN case points the real driver at a closed local port. CI runs
+The schema tests start PostgreSQL 17 in Docker with Testcontainers, so Docker must be running; no
+other database is needed. The health DOWN case points the real driver at a closed local port. CI runs
 `./mvnw verify` (tests plus packaging) on JDK 21 for every pull request and push to `main`.
+
+## Database schema
+
+The tables (accounts, devices, synced history and phrases, the sign vocabulary, model versions,
+training samples, feedback) are defined by Flyway scripts in `src/main/resources/db/migration/` and
+explained in [`docs/schema.md`](docs/schema.md). They are applied when the service starts; set
+`SILENTVOIX_DATABASE_MIGRATE_ON_STARTUP=false` to skip that. A failed migration is logged (without
+the URL) and the service keeps running, reporting `DEGRADED`.
+
+`database.schemaVersion` in the health response is the applied version. `status` is `UP` only when
+the database is reachable **and** at the newest bundled script.
 
 ## Deploying (Railway + Neon)
 

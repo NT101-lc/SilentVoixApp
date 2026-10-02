@@ -23,7 +23,7 @@ class DatabaseHealthCheckerTest {
     void notConfiguredWhenThereIsNoDataSource() {
         DatabaseHealth health = checkerFor(null).check();
 
-        assertThat(health).isEqualTo(new DatabaseHealth(DatabaseHealth.Status.NOT_CONFIGURED, null, null));
+        assertThat(health).isEqualTo(new DatabaseHealth(DatabaseHealth.Status.NOT_CONFIGURED, null, null, null));
     }
 
     @Test
@@ -39,12 +39,32 @@ class DatabaseHealthCheckerTest {
     }
 
     @Test
+    void upReportsTheAppliedSchemaVersion() {
+        FakeDataSource dataSource = FakeDataSource.migratedTo("2");
+
+        DatabaseHealth health = checkerFor(dataSource).check();
+
+        assertThat(health.status()).isEqualTo(DatabaseHealth.Status.UP);
+        assertThat(health.schemaVersion()).isEqualTo("2");
+        assertThat(dataSource.openConnections()).as("connection returned to the pool").isZero();
+    }
+
+    @Test
+    void aReachableDatabaseThatWasNeverMigratedIsUpWithNoSchemaVersion() {
+        DatabaseHealth health = checkerFor(FakeDataSource.healthy()).check();
+
+        assertThat(health.status()).isEqualTo(DatabaseHealth.Status.UP);
+        assertThat(health.schemaVersion()).isNull();
+        assertThat(health.error()).isNull();
+    }
+
+    @Test
     void downWhenTheConnectionDoesNotValidate() {
         FakeDataSource dataSource = FakeDataSource.invalidConnection();
 
         DatabaseHealth health = checkerFor(dataSource).check();
 
-        assertThat(health).isEqualTo(new DatabaseHealth(DatabaseHealth.Status.DOWN, null, "Connection validation failed"));
+        assertThat(health).isEqualTo(new DatabaseHealth(DatabaseHealth.Status.DOWN, null, "Connection validation failed", null));
         assertThat(dataSource.openConnections()).as("connection returned to the pool").isZero();
     }
 
@@ -69,6 +89,6 @@ class DatabaseHealthCheckerTest {
     void downWithAGenericErrorWhenTheDriverGivesNoSqlState() {
         DatabaseHealth health = checkerFor(FakeDataSource.failing(new SQLException("host unreachable"))).check();
 
-        assertThat(health).isEqualTo(new DatabaseHealth(DatabaseHealth.Status.DOWN, null, "Connection failed"));
+        assertThat(health).isEqualTo(new DatabaseHealth(DatabaseHealth.Status.DOWN, null, "Connection failed", null));
     }
 }

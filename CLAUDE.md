@@ -34,15 +34,30 @@ Backend (`backend-java/`):
 - DB settings come from env vars `SILENTVOIX_DATABASE_URL` (JDBC form, Neon pooled `-pooler` host),
   `SILENTVOIX_DATABASE_USERNAME`, `SILENTVOIX_DATABASE_PASSWORD`, optionally loaded from a
   git-ignored `backend-java/.env` (see `.env.example`). Never log or return the URL or password.
+- Schema: Flyway scripts in `src/main/resources/db/migration/` (V1 all tables, V2 seed of the 7
+  stock gestures and their model), documented in `backend-java/docs/schema.md`. Covers anonymous
+  users with identities linked later (email OTP / Google), devices and hashed refresh tokens,
+  synced settings / history (`recognition`) / `saved_phrase` with soft delete and an `updated_at`
+  trigger, the sign vocabulary, model versions and labels, consented landmark-only `sign_sample`s,
+  and feedback. Add changes as new `V<n>__*.sql`; never edit one that has run.
+  `database/SchemaMigrator` runs Flyway from code (no Spring Flyway/JDBC auto-config);
+  `SchemaMigrationRunner` applies it at startup (`silentvoix.database.migrate-on-startup`), and a
+  failure is logged by kind only and the app keeps running. Health reports
+  `database.schemaVersion`; `status` is `UP` only at the newest bundled script
+  (`MigrationScripts.latestVersion()`). Flyway's "Database: <URL>" log line is silenced.
 - Deployment: `backend-java/Dockerfile` (JDK 21 build, JRE runtime, non-root; tests are left to
   CI) and `backend-java/railway.json` (Railway: Dockerfile build, health check on
   `/api/v1/health`). Steps for Railway + Neon are in `backend-java/README.md`. `.dockerignore`
   keeps `.env` out of the image.
-- Tests (JUnit 5, `spring-boot-starter-webmvc-test`): `DatabaseHealthCheckerTest` (UP/DOWN/
-  NOT_CONFIGURED with a hand-rolled `FakeDataSource`, no Mockito), `HealthEndpointTest` (full
+- Tests (JUnit 5, `spring-boot-starter-webmvc-test`; Testcontainers PostgreSQL 17 for anything
+  touching the schema, so Docker must run): `SchemaMigratorTest`, `SchemaConstraintsTest` (one test
+  per rule), `SchemaMigrationRunnerTest`, `MigrationScriptsTest`, `DatabaseHealthCheckerTest` (UP/DOWN/
+  NOT_CONFIGURED and schema version with a hand-rolled `FakeDataSource`, no Mockito), `HealthEndpointTest` (full
   context + MockMvc per database state; the DOWN case uses the real Hikari/PostgreSQL driver
   against a closed port and asserts no credential appears in the body), and
-  `DatabaseConfigurationTest` (a malformed URL is never echoed). `./mvnw test`.
+  `DatabaseConfigurationTest` (a malformed URL is never echoed). `HealthEndpointTest` also has a
+  `RealDatabase` case: startup migrates a real database, health is UP, and no log line names it.
+  `./mvnw test`.
 
 Android (`android/`):
 - Vietnamese UI in `res/values/strings.xml`. `ui/SilentVoixApp.kt` holds the stores, speech and the
