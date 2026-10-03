@@ -125,25 +125,26 @@ the database is reachable **and** at the newest bundled script.
 
 ## Deploying (Railway + Neon)
 
-The repository ships what a container host needs: `Dockerfile` (JDK 21 build, JRE 21 runtime, non-root
-user, packages without running tests), `.dockerignore` (keeps `.env` out of the image) and
-`railway.json` (Dockerfile build, health check on `/api/v1/health`, redeploy only when
-`backend-java/` changes).
+Live at **https://silentvoixapp-production.up.railway.app** (Railway project `diligent-fulfillment`,
+service `SilentVoixApp`, region asia-southeast1), on Neon's pooled endpoint. Every push to `main` that
+touches `backend-java/` redeploys it; migrations run on start.
 
-1. **Neon**: create a project, open *Connect*, turn on *Connection pooling*, and note the host (it
-   contains `-pooler`), database, role and password.
-2. **Railway**: *New Project → Deploy from GitHub repo*, then in the service's *Settings*:
-   - *Root Directory*: `backend-java`
-   - *Config-as-code path*: `/backend-java/railway.json` (this path is not resolved against the root
-     directory, so give it in full)
-3. **Variables** (service → *Variables*), as in the table above:
-   `SILENTVOIX_DATABASE_URL` = `jdbc:postgresql://HOST/DB?sslmode=require`,
-   `SILENTVOIX_DATABASE_USERNAME`, `SILENTVOIX_DATABASE_PASSWORD`. Do not set `PORT`: Railway provides
-   it and the backend listens on it.
-4. **Domain**: *Settings → Networking → Generate Domain*, then check
-   `curl https://YOUR-SERVICE.up.railway.app/api/v1/health` reports `"database":{"status":"UP"`.
-5. **App**: build it against the deployed backend (release builds only allow HTTPS):
-   `./gradlew assembleDebug -Psilentvoix.backendBaseUrl=https://YOUR-SERVICE.up.railway.app`
+The repository ships the image: `Dockerfile` (JDK 21 build, JRE 21 runtime, non-root user, packages
+without running tests) and `.dockerignore` (keeps `.env` out of the image). Railway no longer reads
+`railway.json`, so the service is configured in Railway itself:
+
+| Setting | Value |
+|---|---|
+| Source | GitHub `NT101-lc/SilentVoixApp`, branch `main`, root directory `/backend-java` |
+| Build | Dockerfile `Dockerfile`; watch patterns `/backend-java/**` |
+| Deploy | health check `/api/v1/health`, timeout 120 s; restart on failure, 5 retries |
+| Variables | `SILENTVOIX_DATABASE_URL` (`jdbc:postgresql://HOST-pooler/DB?sslmode=require`), `SILENTVOIX_DATABASE_USERNAME`, `SILENTVOIX_DATABASE_PASSWORD`, `PORT=8081` |
+| Networking | generated domain, target port 8081 (so `PORT` is pinned to match) |
+
+To set it up again: in Neon open *Connect* with *Connection pooling* on; in Railway create a service
+from the GitHub repo and apply the table above. Check with
+`curl https://YOUR-SERVICE.up.railway.app/api/v1/health`: `"status":"UP"` and the newest
+`schemaVersion`. Then create the demo accounts with `scripts/seed_accounts.sql`.
 
 The health endpoint answers 200 even when the database is down or asleep, so a suspended Neon compute
 does not fail a deploy; the body says `DEGRADED` instead.

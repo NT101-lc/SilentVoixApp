@@ -58,10 +58,12 @@ Backend (`backend-java/`):
   `{"error": "<code>"}` (`api/ApiException`); `database/Jdbc` runs plain JDBC in a transaction and turns
   SQL failures into 503 `database_unavailable`, logging the SQLState only. Admins cannot change their
   own account.
-- Deployment: `backend-java/Dockerfile` (JDK 21 build, JRE runtime, non-root; tests are left to
-  CI) and `backend-java/railway.json` (Railway: Dockerfile build, health check on
-  `/api/v1/health`). Steps for Railway + Neon are in `backend-java/README.md`. `.dockerignore`
-  keeps `.env` out of the image.
+- Deployment: live at https://silentvoixapp-production.up.railway.app (Railway project
+  `diligent-fulfillment`, service `SilentVoixApp`, deploys `main` from `/backend-java` on every push
+  touching it) on Neon. `backend-java/Dockerfile` (JDK 21 build, JRE runtime, non-root; tests are left
+  to CI); Railway no longer reads config files, so the service's settings (Dockerfile build, health
+  check `/api/v1/health`, variables, `PORT=8081` matching the domain's target port) live in Railway and
+  are listed in `backend-java/README.md`. `.dockerignore` keeps `.env` out of the image.
 - Tests (JUnit 5, `spring-boot-starter-webmvc-test`; Testcontainers PostgreSQL 17 for anything
   touching the schema, so Docker must run): `SchemaMigratorTest`, `SchemaConstraintsTest` (one test
   per rule), `SchemaMigrationRunnerTest`, `MigrationScriptsTest`, `DatabaseHealthCheckerTest` (UP/DOWN/
@@ -105,8 +107,8 @@ Android (`android/`):
   The user's own phrases are saved by `data/phrases/PhraseRepository` in a second Preferences
   DataStore (`phrases`), newest first, single-line, capped.
 - Real: backend health check, shown to admins (`data/backend/BackendHealthClient`, base URL from
-  `BuildConfig.BACKEND_BASE_URL`, Gradle property `silentvoix.backendBaseUrl`, default
-  `http://10.0.2.2:8081`). Cleartext HTTP is allowed only in debug, only to localhost/10.0.2.2.
+  `BuildConfig.BACKEND_BASE_URL`, Gradle property `silentvoix.backendBaseUrl`, default the Railway
+  URL; `http://10.0.2.2:8081` for a local backend from the emulator). Cleartext HTTP is allowed only in debug, only to localhost/10.0.2.2.
 - Real: gesture recognition in `recognition/` + `ui/translate/GestureCamera.kt`. CameraX frames go
   to MediaPipe's stock Gesture Recognizer (7 canned gestures mapped to phrases in
   `GesturePhrases.kt`; not Vietnamese Sign Language, and the UI says so). `GestureStabilizer`
@@ -178,8 +180,8 @@ requests and pushes to `main` it runs `./mvnw -B verify` (JDK 21) and
 ```bash
 # Android
 cd android
-./gradlew assembleDebug
-./gradlew assembleDebug -Psilentvoix.backendBaseUrl=http://localhost:8081   # with adb reverse tcp:8081 tcp:8081
+./gradlew assembleDebug                                                     # talks to the Railway backend
+./gradlew assembleDebug -Psilentvoix.backendBaseUrl=http://localhost:8081   # local backend, with adb reverse tcp:8081 tcp:8081
 
 # Backend (run from backend-java/ so .env is picked up)
 cd backend-java

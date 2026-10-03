@@ -8,10 +8,11 @@ plugins {
     alias(libs.plugins.room)
 }
 
-// Backend the app talks to. Override with -Psilentvoix.backendBaseUrl=... or in
-// ~/.gradle/gradle.properties. The default reaches the host machine from the Android emulator.
+// Backend the app talks to: the deployed one on Railway unless overridden with
+// -Psilentvoix.backendBaseUrl=... or in ~/.gradle/gradle.properties (e.g. http://10.0.2.2:8081 for a
+// backend on the host machine, seen from the emulator).
 val backendBaseUrl = providers.gradleProperty("silentvoix.backendBaseUrl")
-    .getOrElse("http://10.0.2.2:8081")
+    .getOrElse("https://silentvoixapp-production.up.railway.app")
 
 // MediaPipe's pretrained gesture recognizer (hand landmarks + 7 canned gestures). Downloaded at
 // build time into generated assets rather than committed; pinned to model version 1 and verified.

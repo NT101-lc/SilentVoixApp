@@ -80,11 +80,13 @@ history is not synced to the backend. Nothing in the app is demo data any more.
 
 ## Backend URL
 
-`BuildConfig.BACKEND_BASE_URL` defaults to `http://10.0.2.2:8081` (the host machine as seen from the
-emulator). Override it per build:
+`BuildConfig.BACKEND_BASE_URL` defaults to the deployed backend,
+`https://silentvoixapp-production.up.railway.app`. For a backend running on your machine, override it
+per build:
 
 ```bash
-./gradlew assembleDebug -Psilentvoix.backendBaseUrl=http://localhost:8081
+./gradlew assembleDebug -Psilentvoix.backendBaseUrl=http://10.0.2.2:8081   # emulator
+./gradlew assembleDebug -Psilentvoix.backendBaseUrl=http://localhost:8081  # device, with adb reverse
 ```
 
 or set `silentvoix.backendBaseUrl=...` in `~/.gradle/gradle.properties`.
