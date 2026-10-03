@@ -32,7 +32,7 @@ class MigrationScriptsTest {
     }
 
     @Test
-    void theBundledScriptsEndAtTheRoleMigration() {
-        assertThat(MigrationScripts.latestVersion()).isEqualTo("3");
+    void theBundledScriptsEndAtThePasswordSignInMigration() {
+        assertThat(MigrationScripts.latestVersion()).isEqualTo("4");
     }
 }

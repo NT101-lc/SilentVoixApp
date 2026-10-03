@@ -182,6 +182,55 @@ class SchemaConstraintsTest {
         }
     }
 
+    // ---- sign-in and moderation -------------------------------------------------------------
+
+    @Nested
+    class Accounts {
+
+        /** A well-formed BCrypt hash (cost 10). */
+        private static final String BCRYPT = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
+        @Test
+        void aPasswordIsStoredOnlyAsABcryptHash() throws SQLException {
+            UUID user = newUser();
+            assertRejected(CHECK, "INSERT INTO password_credential (user_id, password_hash) VALUES (?, 'correct horse')", user);
+
+            update("INSERT INTO password_credential (user_id, password_hash) VALUES (?, ?)", user, BCRYPT);
+            assertThat(count("SELECT count(*) FROM password_credential WHERE user_id = ?", user)).isEqualTo(1);
+        }
+
+        @Test
+        void aUserHasAtMostOnePassword() throws SQLException {
+            UUID user = newUser();
+            update("INSERT INTO password_credential (user_id, password_hash) VALUES (?, ?)", user, BCRYPT);
+
+            assertRejected(UNIQUE, "INSERT INTO password_credential (user_id, password_hash) VALUES (?, ?)", user, BCRYPT);
+        }
+
+        @Test
+        void aNewUserIsNotLocked() throws SQLException {
+            assertThat(scalar("SELECT disabled_at FROM app_user WHERE id = ?", newUser())).isNull();
+        }
+
+        @Test
+        void feedbackRemembersItsAuthorUntilTheyLeave() throws SQLException {
+            UUID user = newUser();
+            UUID feedback = uuid("INSERT INTO feedback (user_id, kind, message) VALUES (?, 'idea', 'Thêm ký hiệu') RETURNING id", user);
+
+            update("DELETE FROM app_user WHERE id = ?", user);
+
+            assertThat(count("SELECT count(*) FROM feedback WHERE id = ? AND user_id IS NULL", feedback)).isEqualTo(1);
+        }
+
+        @Test
+        void feedbackIsOpenUntilResolvedAfterItWasSent() throws SQLException {
+            UUID feedback = uuid("INSERT INTO feedback (kind, message) VALUES ('bug', 'Lỗi') RETURNING id");
+            assertThat(scalar("SELECT resolved_at FROM feedback WHERE id = ?", feedback)).isNull();
+
+            assertRejected(CHECK, "UPDATE feedback SET resolved_at = created_at - interval '1 minute' WHERE id = ?", feedback);
+        }
+    }
+
     // ---- synced data ------------------------------------------------------------------------
 
     @Nested

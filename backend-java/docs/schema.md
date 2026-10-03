@@ -11,6 +11,7 @@ newest bundled script.
 | `V1__initial_schema.sql` | All tables, constraints, indexes and the `updated_at` trigger |
 | `V2__seed_stock_gestures.sql` | The 7 stock MediaPipe gestures as signs, and that model as the active version |
 | `V3__add_user_role.sql` | `app_user.role`: `user` (default) or `admin` |
+| `V4__password_sign_in.sql` | `password_credential` (BCrypt hash per user), `app_user.disabled_at` (locked), `feedback.user_id` and `resolved_at` |
 
 Add a change as a new `V<n>__<what>.sql`. Never edit a script that has run anywhere.
 
@@ -23,8 +24,8 @@ Add a change as a new `V<n>__<what>.sql`. Never edit a script that has run anywh
 - **Synced rows** (`recognition`, `saved_phrase`) are soft-deleted with `deleted_at`, so other devices
   learn about the deletion. A trigger keeps `updated_at` current, and devices pull rows changed since
   their last sync.
-- **Secrets** are never stored: refresh tokens and e-mail codes are kept as 32-byte SHA-256 hashes
-  (enforced by `CHECK`).
+- **Secrets** are never stored: refresh tokens and e-mail codes are kept as 32-byte SHA-256 hashes,
+  passwords as BCrypt hashes (both enforced by `CHECK`).
 - **No images** are stored anywhere. Training samples are hand landmarks only.
 
 ## Diagram
@@ -49,6 +50,8 @@ erDiagram
     app_user |o--o{ sign_sample : contributed
     device |o--o{ sign_sample : "recorded on"
     device |o--o{ feedback : sends
+    app_user |o--o{ feedback : writes
+    app_user ||--o| password_credential : "signs in with"
     recognition |o--o{ feedback : about
 ```
 
@@ -61,7 +64,8 @@ same user, so nothing is lost.
 
 | Table | Purpose | Key rules |
 |---|---|---|
-| `app_user` | One person | `display_name` optional, 1–80 chars; `role` is `user` (default) or `admin` |
+| `app_user` | One person | `display_name` optional, 1–80 chars; `role` is `user` (default) or `admin`; `disabled_at` set while an admin has locked the account |
+| `password_credential` | A user's password | At most one per user; only a BCrypt hash (`CHECK` on the format) |
 | `user_identity` | A verified way to sign in: `email` (OTP) or `google` | `UNIQUE (provider, subject)`; e-mail subjects are lower case |
 | `device` | An installation of the app | `platform` in android / ios / web |
 | `refresh_token` | Long-lived session for one device | Hash only, unique; expires after it is created |
@@ -97,7 +101,7 @@ These mirror what the app keeps on the device today (DataStore settings, Room hi
 
 | Table | Purpose | Key rules |
 |---|---|---|
-| `feedback` | A wrong result, a bug or an idea, possibly anonymous | Message 1–2000 chars |
+| `feedback` | A wrong result, a bug or an idea, possibly anonymous | Message 1–2000 chars; `user_id` is the author (cleared if they leave); `resolved_at` is set when an admin handles it |
 
 ## Deleting data
 
@@ -109,20 +113,23 @@ These mirror what the app keeps on the device today (DataStore settings, Room hi
 
 ## Accounts for development and demos
 
-`backend-java/scripts/seed_accounts.sql` creates two accounts, each with a verified e-mail identity
-and default settings:
+`backend-java/scripts/seed_accounts.sql` creates two accounts, each with a verified e-mail identity,
+a password and default settings:
 
 | E-mail | Role |
 |---|---|
 | `admin@silentvoix.local` | `admin` |
 | `user@silentvoix.local` | `user` |
 
-It is deliberately not a migration, so production never gets them by itself. Run it on a migrated
-database: paste it into Neon's SQL Editor, or
-`psql "postgresql://ROLE:PASSWORD@HOST/DB?sslmode=require" -f backend-java/scripts/seed_accounts.sql`.
-Running it again changes nothing; an account that already has one of these addresses is reused and
-given its role. There is no sign-in API yet: these accounts exist in the database for when
-authentication lands. Nothing grants `admin` from the app.
+It is deliberately not a migration, so production never gets them by itself, and it holds no
+passwords: replace `<admin password>` and `<user password>` in a copy (8+ characters, at most 72
+bytes; the script stops, changing nothing, while a placeholder is left), then run the copy on a
+database at version 4 or later: paste it into Neon's SQL Editor, or
+`psql "postgresql://ROLE:PASSWORD@HOST/DB?sslmode=require" -f seed_accounts.filled.sql`. Do not
+commit the filled-in copy. pgcrypto hashes the passwords in the same BCrypt format the backend
+writes. Running it again sets the roles, unlocks the accounts and replaces their passwords; an
+account that already has one of these addresses is reused. Registering in the app always makes a
+`user`; only an admin, or this script, makes an `admin`.
 
 ## Tests
 
@@ -131,7 +138,8 @@ authentication lands. Nothing grants `admin` from the app.
 
 - `SchemaMigratorTest`: an empty database migrates to the newest script, a second run applies
   nothing, and the seed holds the 7 gestures and their active model.
-- `SeedAccountsTest`: the seed script creates exactly the two accounts, is idempotent, and reuses
-  an existing account with the same e-mail.
+- `SeedAccountsTest`: the seed script creates exactly the two accounts, their passwords pass the
+  backend's own BCrypt check, it refuses unfilled placeholders and short passwords, is idempotent,
+  and reuses an existing account with the same e-mail.
 - `SchemaConstraintsTest`: one test per rule above, each storing something the app must never
   store and expecting PostgreSQL to refuse it.

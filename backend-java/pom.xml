@@ -47,6 +47,12 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
+        <!-- BCrypt for stored passwords only; the rest of Spring Security (filters, auto-config)
+             is not used: sessions are checked in auth/AuthInterceptor. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
 
         <!-- Includes spring-boot-starter-test (JUnit 5, AssertJ) plus MockMvc auto-configuration. -->
         <dependency>

@@ -22,7 +22,7 @@ class SchemaMigratorTest {
         try (HikariDataSource dataSource = TestDatabase.fresh().dataSource()) {
             SchemaMigrator.Outcome outcome = migrator.migrate(dataSource);
 
-            assertThat(outcome.applied()).isEqualTo(3);
+            assertThat(outcome.applied()).isEqualTo(4);
             assertThat(outcome.version()).isEqualTo(MigrationScripts.latestVersion());
         }
     }

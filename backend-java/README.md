@@ -13,6 +13,7 @@ backend; the database is reached from here, never from the device.
 | Language | Java 21 |
 | Framework | Spring Boot 4 (`spring-boot-starter-webmvc`), Maven |
 | Database | PostgreSQL on Neon (HikariCP pool + PostgreSQL JDBC driver) |
+| Passwords | BCrypt from `spring-security-crypto` (nothing else from Spring Security) |
 
 ## Phase 1 endpoints
 
@@ -32,6 +33,32 @@ backend; the database is reached from here, never from the device.
 
 Each call opens a pooled connection. On Neon this wakes a suspended compute, so the first call after
 idle can take a few seconds.
+
+## Accounts and roles
+
+E-mail + password accounts with two roles. Every error body is `{"error": "<code>"}`; the app maps
+codes to Vietnamese messages.
+
+| Endpoint | Who | What |
+|---|---|---|
+| `POST /api/v1/auth/register` | anyone | `{email, password, displayName?, platform?, appVersion?}` → `201 {token, expiresAt, user}`. Always role `user`. Codes: `invalid_email`, `password_too_short` (< 8), `password_too_long` (> 72 bytes), `invalid_display_name`, `email_taken` (409) |
+| `POST /api/v1/auth/login` | anyone | `{email, password, ...}` → `{token, expiresAt, user}`. `invalid_credentials` (401, same for an unknown address), `account_disabled` (403, only with the right password), `too_many_attempts` (429 after 5 wrong passwords in 15 min) |
+| `GET /api/v1/auth/me` | signed in | `{id, email, displayName, role}`, read fresh from the database |
+| `POST /api/v1/auth/logout` | signed in | Revokes this session only (204) |
+| `POST /api/v1/feedback` | signed in | `{kind: wrong_result \| bug \| idea, message}` (1–2000 chars) → `201 {id}` |
+| `GET /api/v1/admin/overview` | admin | Counts: users, admins, locked, new and active in 7 days, open and total feedback |
+| `GET /api/v1/admin/users` | admin | Every account with role, `locked`, `createdAt`, `lastSeenAt` |
+| `PATCH /api/v1/admin/users/{id}` | admin | `{role?, locked?}`. Locking revokes all their sessions. An admin cannot change their own account (`cannot_change_self`, 409) |
+| `GET /api/v1/admin/feedback?status=open\|all` | admin | Newest first, with the author's e-mail and name |
+| `PATCH /api/v1/admin/feedback/{id}` | admin | `{resolved: true\|false}` |
+
+Signed-in calls send `Authorization: Bearer <token>`. A token is 32 random bytes; the database keeps
+only its SHA-256 (`refresh_token`), tied to a `device` row per sign-in, valid 30 days.
+`auth/AuthInterceptor` checks it against the database on every call, so a role change or a lock
+applies at once: no token, a bad or expired one, or a locked account is 401; a non-admin on
+`/api/v1/admin/**` is 403. Without a database every account call is 503 `database_unavailable`.
+
+Admins are made only by another admin (`PATCH .../users/{id}`) or by `scripts/seed_accounts.sql`.
 
 ## Database configuration (Neon)
 
@@ -90,7 +117,8 @@ explained in [`docs/schema.md`](docs/schema.md). They are applied when the servi
 the URL) and the service keeps running, reporting `DEGRADED`.
 
 Two accounts for development and demos (`admin@silentvoix.local` as admin, `user@silentvoix.local`
-as user) come from `scripts/seed_accounts.sql`, which you run by hand; see the schema doc.
+as user) come from `scripts/seed_accounts.sql`, which you fill in with two passwords and run by
+hand; see the schema doc.
 
 `database.schemaVersion` in the health response is the applied version. `status` is `UP` only when
 the database is reachable **and** at the newest bundled script.
@@ -129,5 +157,5 @@ docker run --rm -p 8081:8081 --env-file backend-java/.env silentvoix-backend
 
 ## Not in Phase 1
 
-User accounts, authentication, recognition endpoints, database-backed history, WebSocket, and
+E-mail OTP and Google sign-in (tables exist), password reset, recognition endpoints, database-backed history, WebSocket, and
 integration with the Python AI/ML services.
