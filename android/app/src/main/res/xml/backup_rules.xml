@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and lower. The session token stays on this device: restoring it elsewhere would
+     copy someone's sign-in. Settings, phrases and history are backed up as before. -->
+<full-backup-content>
+    <exclude domain="file" path="datastore/session.preferences_pb" />
+</full-backup-content>

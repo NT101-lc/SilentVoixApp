@@ -45,9 +45,19 @@ Backend (`backend-java/`):
   failure is logged by kind only and the app keeps running. Health reports
   `database.schemaVersion`; `status` is `UP` only at the newest bundled script
   (`MigrationScripts.latestVersion()`). Flyway's "Database: <URL>" log line is silenced.
-  `backend-java/scripts/seed_accounts.sql` (not a migration; run by hand, idempotent, tested by
-  `SeedAccountsTest`) creates `admin@silentvoix.local` (admin) and `user@silentvoix.local` (user).
-  There is no sign-in API yet.
+  `backend-java/scripts/seed_accounts.sql` (not a migration; the operator fills in two passwords and
+  runs it by hand; idempotent; tested by `SeedAccountsTest`) creates `admin@silentvoix.local` (admin)
+  and `user@silentvoix.local` (user). V4 adds `password_credential`, `app_user.disabled_at`, and
+  `feedback.user_id`/`resolved_at`.
+- Accounts (`auth/`, `admin/`, `feedback/`, endpoints listed in `backend-java/README.md`): e-mail +
+  password (BCrypt via `spring-security-crypto` only; no Spring Security filters). Sessions are random
+  tokens stored as SHA-256 in `refresh_token`, one `device` row per sign-in, 30 days.
+  `AuthInterceptor` guards `/api/v1/**` except health/register/login and reads the user (and role)
+  from the database on every call; `/api/v1/admin/**` needs role `admin`. Register always makes a
+  `user`. `LoginThrottle` (in memory): 5 wrong passwords per address per 15 min. Errors are
+  `{"error": "<code>"}` (`api/ApiException`); `database/Jdbc` runs plain JDBC in a transaction and turns
+  SQL failures into 503 `database_unavailable`, logging the SQLState only. Admins cannot change their
+  own account.
 - Deployment: `backend-java/Dockerfile` (JDK 21 build, JRE runtime, non-root; tests are left to
   CI) and `backend-java/railway.json` (Railway: Dockerfile build, health check on
   `/api/v1/health`). Steps for Railway + Neon are in `backend-java/README.md`. `.dockerignore`
@@ -60,12 +70,28 @@ Backend (`backend-java/`):
   against a closed port and asserts no credential appears in the body), and
   `DatabaseConfigurationTest` (a malformed URL is never echoed). `HealthEndpointTest` also has a
   `RealDatabase` case: startup migrates a real database, health is UP, and no log line names it.
-  `./mvnw test`.
+  `AuthApiTest` and `AdminApiTest` drive the account endpoints through the full context against a real
+  migrated database; `AuthWithoutDatabaseTest` covers the 503s; `PasswordHasherTest`, `SessionTokensTest`,
+  `LoginThrottleTest` are plain unit tests. `./mvnw test`.
 
 Android (`android/`):
-- Vietnamese UI in `res/values/strings.xml`. `ui/SilentVoixApp.kt` holds the stores, speech and the
-  five destinations (Trang chủ / Dịch / Nói / Lịch sử / Cài đặt); its stateless `AppShell` is the
-  `NavigationSuiteScaffold` (bottom bar on phones, rail on larger windows). The app opens on Trang
+- Vietnamese UI in `res/values/strings.xml`. `ui/SilentVoixApp.kt` holds the stores, speech, the session
+  and the destinations; its stateless `AppShell` is the `NavigationSuiteScaffold` (bottom bar on
+  phones, rail on larger windows) over the tabs `destinationsFor(role)` gives: users get Trang chủ / Dịch
+  / Nói / Lịch sử / Cài đặt, admins also Quản trị (before Cài đặt).
+- Auth: nobody signed in sees `ui/auth/AuthScreen` (stateless `AuthContent`; sign in or register,
+  validated by `data/auth/AuthForm.kt` with the backend's rules). `data/auth/SessionStore` keeps the
+  token and account in a third Preferences DataStore (`session`, excluded from backup via
+  `res/xml/backup_rules.xml` and `data_extraction_rules.xml`). On start and after any admin 403 the app
+  calls `/auth/me`; `SessionRefresh` replaces the account, signs out on 401, keeps it when offline.
+  `data/api/SilentVoixApi` is the only API client (transport injectable for tests); `ApiError` maps the
+  server's codes, `ui/common/ApiErrorText.kt` turns them into Vietnamese. The role in the app only
+  hides tabs; the server enforces it.
+- Admin (`ui/admin/AdminScreen.kt`, stateless `AdminContent`): overview counts, account list with
+  search (`data/admin/AdminModels.kt` `matching`, Vietnamese marks optional), grant/remove admin and
+  lock/unlock (confirm dialogs for grant and lock; own row has no menu), feedback inbox (open/all,
+  resolve/reopen), and server status (`ui/common/BackendStatusRow`, moved out of Settings). Settings
+  shows the account (sign out with confirmation) and a feedback form for everyone. The app opens on Trang
   chủ. The camera starts only from Dịch's start button or the home screen's "Mở camera" action
   (`startRequested` on `TranslateScreen`); never on launch.
 - Real: home dashboard (`ui/home/HomeScreen.kt`, stateless `HomeContent`): greeting and date, a
@@ -78,7 +104,7 @@ Android (`android/`):
   arrays `phrases_*`), the phone speaks it and shows it full-screen (`ui/common/FullscreenCaption`).
   The user's own phrases are saved by `data/phrases/PhraseRepository` in a second Preferences
   DataStore (`phrases`), newest first, single-line, capped.
-- Real: backend health check (`data/backend/BackendHealthClient`, base URL from
+- Real: backend health check, shown to admins (`data/backend/BackendHealthClient`, base URL from
   `BuildConfig.BACKEND_BASE_URL`, Gradle property `silentvoix.backendBaseUrl`, default
   `http://10.0.2.2:8081`). Cleartext HTTP is allowed only in debug, only to localhost/10.0.2.2.
 - Real: gesture recognition in `recognition/` + `ui/translate/GestureCamera.kt`. CameraX frames go
@@ -129,7 +155,7 @@ Android (`android/`):
   falling leaves on Home; celebrated milestones are stored in `AppSettings.celebratedMilestones`.
   Saving a phrase on Speak throws a few leaves from the button. `HistoryContent` is the stateless History screen (day-grouped rows, clear-all behind a
   confirmation). Shared pieces:
-  `ui/common/ScreenHeader`, `SegmentedControl`. Server status lives in Settings, not on Translate.
+  `ui/common/ScreenHeader`, `SegmentedControl`. Server status lives on the admin tab only.
 - Screenshot renders (design review, not regression tests): `app/src/test/.../screenshots/`,
   Roborazzi + Robolectric (SDK 35), excluded from normal runs and CI. Render with
   `./gradlew testDebugUnitTest -Pscreenshots`; PNGs land in `app/build/outputs/roborazzi/`.
@@ -138,7 +164,9 @@ Android (`android/`):
 - Unit tests (JUnit 4, `app/src/test`) cover `GestureStabilizer`, `TranslateSession`, `HandPose`,
   `SpeechController`, `SettingsRepository` and `PhraseRepository` (against real DataStore files),
   `HistoryUiState`, `historyStats`, history day labels, palette contrast, the scene model, leaf
-  bursts, motion settings and milestones: `./gradlew testDebugUnitTest`.
+  bursts, motion settings, milestones, the auth form, `ApiError`, `SessionStore`, `SessionRefresh`,
+  role-based tabs, user search, and `SilentVoixApi` against a scripted transport (Robolectric for
+  `org.json`): `./gradlew testDebugUnitTest`.
 
 Both wrappers are committed (Gradle under `android/`, Maven 3.9.16 `mvnw` under `backend-java/`);
 neither `gradle` nor `mvn` needs to be on the PATH. CI is `.github/workflows/ci.yml`: on pull

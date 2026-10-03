@@ -34,6 +34,23 @@ import com.silentvoix.app.recognition.TranslateSession
 import com.silentvoix.app.speech.SpeechStatus
 import com.silentvoix.app.ui.AppDestination
 import com.silentvoix.app.ui.AppShell
+import com.silentvoix.app.ui.destinationsFor
+import com.silentvoix.app.data.admin.AdminOverview
+import com.silentvoix.app.data.admin.FeedbackItem
+import com.silentvoix.app.data.admin.FeedbackKind
+import com.silentvoix.app.data.admin.ManagedUser
+import com.silentvoix.app.data.api.ApiError
+import com.silentvoix.app.data.auth.Account
+import com.silentvoix.app.data.auth.FormError
+import com.silentvoix.app.data.auth.FormErrors
+import com.silentvoix.app.data.auth.UserRole
+import com.silentvoix.app.ui.admin.AdminContent
+import com.silentvoix.app.ui.admin.AdminSection
+import com.silentvoix.app.ui.admin.Loadable
+import com.silentvoix.app.ui.auth.AuthContent
+import com.silentvoix.app.ui.auth.AuthForm
+import com.silentvoix.app.ui.auth.AuthMode
+import com.silentvoix.app.ui.scene.TimeOfDay
 import com.silentvoix.app.ui.common.FullscreenCaption
 import com.silentvoix.app.ui.history.HistoryContent
 import com.silentvoix.app.ui.history.HistoryFilter
@@ -101,9 +118,13 @@ class ScreensScreenshot {
             contentPadding = PaddingValues(),
         )
 
+    private val adminAccount = Account("a-1", "admin@silentvoix.local", "Quản trị viên", UserRole.ADMIN)
+    private val userAccount = Account("u-1", "lan@example.com", "Nguyễn Thị Lan", UserRole.USER)
+
     @Composable
-    private fun Settings(theme: ThemeMode) = SettingsScreen(
-        settings = AppSettings(themeMode = theme), onSettingsChange = {}, backendStatus = online, onRetryBackend = {},
+    private fun Settings(theme: ThemeMode, account: Account = userAccount) = SettingsScreen(
+        settings = AppSettings(themeMode = theme), onSettingsChange = {}, account = account, onSignOut = {},
+        sendingFeedback = false, feedbackSentCount = 0, onSendFeedback = { _, _ -> },
         speechStatus = SpeechStatus.Ready, onPreviewSpeech = {}, contentPadding = PaddingValues(),
     )
 
@@ -142,10 +163,10 @@ class ScreensScreenshot {
     fun homeTablet() = shot("home_tablet_light") { Home() }
     /** The dashboard inside the real navigation, to judge the five-item bar. */
     @Test fun shellLight() = shot("shell_home_light") {
-        AppShell(AppDestination.HOME, onDestinationChange = {}, snackbarHostState = SnackbarHostState()) { Home(padding = it) }
+        AppShell(destinationsFor(UserRole.USER), AppDestination.HOME, onDestinationChange = {}, snackbarHostState = SnackbarHostState()) { Home(padding = it) }
     }
     @Test fun shellDark() = shot("shell_home_dark", ThemeMode.DARK) {
-        AppShell(AppDestination.HOME, onDestinationChange = {}, snackbarHostState = SnackbarHostState()) {
+        AppShell(destinationsFor(UserRole.USER), AppDestination.HOME, onDestinationChange = {}, snackbarHostState = SnackbarHostState()) {
             Home(dark = true, padding = it)
         }
     }
@@ -189,6 +210,75 @@ class ScreensScreenshot {
         History(HistoryFilter.FAVOURITES, HistoryUiState.Loaded(emptyList()))
     }
     @Test fun settingsLight() = shot("settings_light") { Settings(ThemeMode.LIGHT) }
+    @Test @Config(qualifiers = "w411dp-h1500dp-xxhdpi")
+    fun settingsAdminFull() = shot("settings_admin_full_light") { Settings(ThemeMode.LIGHT, adminAccount) }
+
+    // ---- sign-in -----------------------------------------------------------------------------
+
+    @Composable
+    private fun Auth(mode: AuthMode, time: TimeOfDay = TimeOfDay.DAY, error: String? = null, form: AuthForm = AuthForm()) =
+        AuthContent(
+            mode = mode, onModeChange = {}, form = form, onFormChange = {}, errors = FormErrors(), serverError = error,
+            submitting = false, onSubmit = {}, time = time,
+        )
+
+    @Test fun authSignInLight() = shot("auth_sign_in_light") { Auth(AuthMode.SIGN_IN, form = AuthForm(email = "lan@example.com", password = "secret12")) }
+    @Test fun authSignInNightDark() = shot("auth_sign_in_night_dark", ThemeMode.DARK) { Auth(AuthMode.SIGN_IN, TimeOfDay.NIGHT) }
+    @Test fun authRegisterLight() = shot("auth_register_light") { Auth(AuthMode.REGISTER, TimeOfDay.DUSK) }
+    @Test fun authErrorLight() = shot("auth_error_light") {
+        AuthContent(
+            mode = AuthMode.SIGN_IN, onModeChange = {}, form = AuthForm(email = "lan@"), onFormChange = {},
+            errors = FormErrors(email = FormError.EMAIL_INVALID, password = FormError.PASSWORD_MISSING),
+            serverError = "Email hoặc mật khẩu chưa đúng.", submitting = false, onSubmit = {}, time = TimeOfDay.DAWN,
+        )
+    }
+    @Test @Config(qualifiers = "w1280dp-h800dp-xhdpi")
+    fun authTablet() = shot("auth_tablet_light") { Auth(AuthMode.SIGN_IN) }
+
+    // ---- admin -------------------------------------------------------------------------------
+
+    private val managed = listOf(
+        ManagedUser("a-1", "admin@silentvoix.local", "Quản trị viên", UserRole.ADMIN, false, at(9) - 86_400_000L * 3, at(15)),
+        ManagedUser("u-1", "lan@example.com", "Nguyễn Thị Lan", UserRole.USER, false, at(9) - 86_400_000L * 2, at(14)),
+        ManagedUser("u-2", "minh.dang@example.com", "Đặng Minh", UserRole.ADMIN, false, at(9) - 86_400_000L, at(9) - 86_400_000L),
+        ManagedUser("u-3", "spam@example.com", null, UserRole.USER, true, at(9) - 86_400_000L * 6, at(9) - 86_400_000L * 5),
+        ManagedUser("u-4", "user@silentvoix.local", "Người dùng thử", UserRole.USER, false, at(9), null),
+    )
+    private val inbox = listOf(
+        FeedbackItem("f-1", FeedbackKind.WRONG_RESULT, "Tôi làm ký hiệu \"Đồng ý\" nhưng app nhận thành \"Xin chào\" khi trời tối.", at(15) - 600_000, null, "lan@example.com", "Nguyễn Thị Lan"),
+        FeedbackItem("f-2", FeedbackKind.IDEA, "Mong có thêm các câu dùng ở bệnh viện, như \"Tôi bị dị ứng thuốc\".", at(11), null, "minh.dang@example.com", "Đặng Minh"),
+        FeedbackItem("f-3", FeedbackKind.BUG, "Ứng dụng tắt khi xoay ngang màn hình lúc đang dịch.", at(9) - 86_400_000L, null, null, null),
+    )
+
+    @Composable
+    private fun Admin(
+        section: AdminSection,
+        overview: Loadable<AdminOverview> = Loadable.Loaded(AdminOverview(128, 3, 2, 17, 64, 3, 21)),
+        feedback: Loadable<List<FeedbackItem>> = Loadable.Loaded(inbox),
+        query: String = "",
+    ) = AdminContent(
+        section = section, onSectionChange = {}, overview = overview, users = Loadable.Loaded(managed),
+        feedback = feedback, query = query, onQueryChange = {}, feedbackOpenOnly = true, onFeedbackOpenOnlyChange = {},
+        currentUserId = "a-1", busyIds = emptySet(), backendStatus = online, onRetryBackend = {}, onRefresh = {},
+        onUserAction = { _, _ -> }, onToggleResolved = {}, nowMillis = at(16), zone = ZONE, contentPadding = PaddingValues(),
+    )
+
+    @Test fun adminOverviewLight() = shot("admin_overview_light") { Admin(AdminSection.OVERVIEW) }
+    @Test fun adminOverviewDark() = shot("admin_overview_dark", ThemeMode.DARK) { Admin(AdminSection.OVERVIEW) }
+    @Test @Config(qualifiers = "w411dp-h1400dp-xxhdpi")
+    fun adminUsersLight() = shot("admin_users_light") { Admin(AdminSection.USERS) }
+    @Test fun adminUsersSearchDark() = shot("admin_users_search_dark", ThemeMode.DARK) { Admin(AdminSection.USERS, query = "dang") }
+    @Test @Config(qualifiers = "w411dp-h1200dp-xxhdpi")
+    fun adminFeedbackLight() = shot("admin_feedback_light") { Admin(AdminSection.FEEDBACK) }
+    @Test fun adminFeedbackEmpty() = shot("admin_feedback_empty_light") { Admin(AdminSection.FEEDBACK, feedback = Loadable.Loaded(emptyList())) }
+    @Test fun adminOffline() = shot("admin_offline_light") {
+        Admin(AdminSection.OVERVIEW, overview = Loadable.Failed(ApiError.NETWORK))
+    }
+    @Test fun shellAdmin() = shot("shell_admin_light") {
+        AppShell(destinationsFor(UserRole.ADMIN), AppDestination.ADMIN, onDestinationChange = {}, snackbarHostState = SnackbarHostState()) {
+            Admin(AdminSection.OVERVIEW)
+        }
+    }
     @Test fun settingsDark() = shot("settings_dark", ThemeMode.DARK) { Settings(ThemeMode.DARK) }
 }
 

@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import com.silentvoix.app.data.progress.Milestone
 import com.silentvoix.app.data.progress.milestoneToCelebrate
 import com.silentvoix.app.data.progress.reachedMilestones
+import com.silentvoix.app.ui.common.pullUp
 import com.silentvoix.app.ui.common.pressBounce
 import com.silentvoix.app.ui.scene.LeafBurstEffect
 import com.silentvoix.app.ui.scene.NightStage
@@ -325,13 +326,6 @@ internal fun HomeContent(
 private val SceneHeight = 300.dp
 private val SceneHeightWide = 260.dp
 private val CardOverlap = 64.dp
-
-/** Moves the content up by [amount] and gives that space back, so nothing below is left with a gap. */
-private fun Modifier.pullUp(amount: Dp): Modifier = layout { measurable, constraints ->
-    val placeable = measurable.measure(constraints)
-    val shift = amount.roundToPx()
-    layout(placeable.width, (placeable.height - shift).coerceAtLeast(0)) { placeable.place(0, -shift) }
-}
 
 /** A greeting for the time of day over today's date, written on the sky, with the light/dark switch. */
 @Composable

@@ -11,12 +11,22 @@ Native Android client for SilentVoix: gesture recognition in, spoken-language te
 |---|---|---|
 | Language / build | Kotlin (AGP 9 built-in), Gradle Kotlin DSL, version catalog | in use |
 | UI | Jetpack Compose, Material 3, `material3-adaptive-navigation-suite` | in use |
-| Backend calls | `HttpURLConnection` + `org.json` to `../backend-java/` | health check only |
+| Backend calls | `HttpURLConnection` + `org.json` to `../backend-java/` (`data/api/SilentVoixApi`) | sign-in, feedback, admin, health |
 | Camera / inference | CameraX, MediaPipe Tasks (Gesture Recognizer) | in use, stock gesture model |
 | Speech output | Android `TextToSpeech` (Vietnamese) | in use |
 
 ## Phase 1 UI
 
+- **Sign-in** (`ui/auth/`): the app opens on a painted sky with a paper card to sign in or create an
+  account (e-mail + password; name optional). The session is kept on the device, so it opens signed
+  in, offline too; on start the app asks the server who you are, and an expired session or a locked
+  account returns to sign-in with a message.
+- **Roles**: a **user** gets the five everyday tabs below plus sending feedback. An **admin** gets
+  all of that plus a **Quản trị** tab: an overview (accounts, active and new this week, admins,
+  locked, open feedback), the account list with search (Vietnamese marks optional) where an admin
+  grants or removes the admin role and locks or unlocks accounts (each asked twice where it matters;
+  never their own), the feedback inbox (open / all, mark handled, reopen), and server status. The
+  server enforces every rule; the app only hides what a role cannot use.
 - **Adaptive navigation**: `NavigationSuiteScaffold` shows a bottom bar (`Trang chủ`, `Dịch`, `Nói`,
   `Lịch sử`, `Cài đặt`) on phones and a navigation rail on larger windows. Home and Translate switch to
   two columns at ≥ 840 dp.
@@ -40,14 +50,16 @@ Native Android client for SilentVoix: gesture recognition in, spoken-language te
 - **Lịch sử**: every phrase recognised on Dịch, newest first, stored on the device (Room). Filters for all /
   today / favourites, replay, favourite toggle, clear-all with confirmation, and loading, empty and error
   states driven by the store.
-- **Cài đặt**: theme (system/light/dark), large result text, speech options, app info. Saved with
-  DataStore, so they survive restarts.
+- **Cài đặt**: the account (name, e-mail, role, sign out), theme (system/light/dark), large result
+  text, speech options, a feedback form (wrong result / bug / idea), app info. Saved with DataStore,
+  so they survive restarts.
 - Accessibility: 48–64 dp touch targets, headings, merged TalkBack nodes, live regions for results and
   status, and text alongside every colour indicator.
 
 ### What is real
 
-Real: backend health check (`GET /api/v1/health`, including database readiness), theme switching, large
+Real: accounts and roles against the backend (`/api/v1/auth`, `/api/v1/feedback`, `/api/v1/admin`),
+backend health check (`GET /api/v1/health`, on the admin tab), theme switching, large
 result text, gesture recognition (below), and speech: replay on Translate and History, auto-speak of
 new results, and speech rate (0.5×–2×) via Android `TextToSpeech` in Vietnamese. Settings shows whether
 a Vietnamese voice is available, with a preview button, or a shortcut to install the voice data.
@@ -62,7 +74,8 @@ The model (`gesture_recognizer.task`, ~8 MB) is not committed: the `downloadGest
 fetches a pinned version into `build/generated/models` and checks its SHA-256, so the first build needs
 network access.
 
-Settings persist in a Preferences DataStore and history in a Room database, both on the device only;
+Settings and the session persist in Preferences DataStores (the session file is excluded from
+backups and device transfers) and history in a Room database, all on the device;
 history is not synced to the backend. Nothing in the app is demo data any more.
 
 ## Backend URL

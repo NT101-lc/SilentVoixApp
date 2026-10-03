@@ -55,7 +55,15 @@ import com.silentvoix.app.BuildConfig
 import com.silentvoix.app.R
 import com.silentvoix.app.data.backend.BackendHealthClient
 import com.silentvoix.app.SilentVoixApplication
+import com.silentvoix.app.data.api.ApiError
+import com.silentvoix.app.data.api.ApiResult
+import com.silentvoix.app.data.auth.Session
+import com.silentvoix.app.data.auth.SessionRefresh
 import com.silentvoix.app.data.backend.BackendStatus
+import com.silentvoix.app.ui.admin.AdminScreen
+import com.silentvoix.app.ui.auth.AuthScreen
+import com.silentvoix.app.ui.common.apiErrorRes
+import kotlinx.coroutines.flow.map
 import com.silentvoix.app.recognition.Recognition
 import com.silentvoix.app.speech.SpeakOutcome
 import com.silentvoix.app.speech.SpeechUnavailableReason
@@ -71,8 +79,9 @@ import com.silentvoix.app.ui.translate.TranslateScreen
 import kotlinx.coroutines.launch
 
 /**
- * The app: stores, speech and the five destinations. It opens on the home dashboard; the camera
- * is only ever started from the Translate screen, or by the home screen's explicit action.
+ * The app: stores, speech, the session and the destinations. Nobody signed in sees the sign-in
+ * screen; a user gets five tabs, an admin also gets Quản trị. It opens on the home dashboard; the
+ * camera is only ever started from the Translate screen, or by the home screen's explicit action.
  */
 @Composable
 fun SilentVoixApp() {
@@ -81,6 +90,12 @@ fun SilentVoixApp() {
     // flash of the default theme before a saved dark theme applies.
     val storedSettings by app.settingsRepository.settings.collectAsStateWithLifecycle(initialValue = null)
     val settings = storedSettings ?: return
+    // Same for the session: "not read yet" must not flash the sign-in screen.
+    val sessionFlow = remember { app.sessionStore.session.map { StoredSession(it) } }
+    val stored by sessionFlow.collectAsStateWithLifecycle(initialValue = null)
+    val loadedSession = stored ?: return
+    // Why the sign-in screen is showing, when it was not the person's choice.
+    var signInNotice by rememberSaveable { mutableStateOf<String?>(null) }
     var destination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
     val screenStateHolder = rememberSaveableStateHolder()
     // Set by the home screen's "open camera" action; Translate starts a session when it sees it.
@@ -141,15 +156,53 @@ fun SilentVoixApp() {
         ThemeMode.DARK -> true
     }
 
-    // The home screen is painted right under the status bar: its icons follow the sky, not the theme.
-    val homeSkyIsLight = skyPalette(TimeOfDay.from(LocalTime.now().hour)).isLight
+    val session = loadedSession.session
+    val signOut: (expired: Boolean) -> Unit = { expired ->
+        signInNotice = if (expired) context.getString(R.string.session_expired) else null
+        destination = AppDestination.HOME
+        app.appScope.launch {
+            // Best effort: the server forgets the token if it can be reached; this device forgets it regardless.
+            session?.let { app.api.logout(it.token) }
+            app.sessionStore.clear()
+        }
+    }
+    // Asks the server who this is: on start, and whenever an admin call is refused (role taken away).
+    var accountCheck by remember { mutableIntStateOf(0) }
+    LaunchedEffect(session?.token, accountCheck) {
+        val token = session?.token ?: return@LaunchedEffect
+        when (val refresh = SessionRefresh.from(app.api.me(token))) {
+            is SessionRefresh.Replace -> app.sessionStore.updateAccount(refresh.account)
+            SessionRefresh.SignOut -> signOut(true)
+            // Offline or the server is down: keep working with the stored account.
+            SessionRefresh.Keep -> Unit
+        }
+    }
+    var sendingFeedback by remember { mutableStateOf(false) }
+    var feedbackSent by rememberSaveable { mutableIntStateOf(0) }
+
+    // The home and sign-in screens are painted right under the status bar: their icons follow the sky.
+    val skyIsLight = skyPalette(TimeOfDay.from(LocalTime.now().hour)).isLight
+    val shownDestination = session?.let { destination.allowedFor(it.account.role) } ?: AppDestination.HOME
     SilentVoixTheme(
         themeMode = settings.themeMode,
-        lightStatusBars = if (destination == AppDestination.HOME) homeSkyIsLight else null,
+        lightStatusBars = if (session == null || shownDestination == AppDestination.HOME) skyIsLight else null,
     ) {
+        if (session == null) {
+            AuthScreen(
+                api = app.api,
+                onSignedIn = { signedIn ->
+                    signInNotice = null
+                    app.appScope.launch { app.sessionStore.save(signedIn) }
+                },
+                notice = signInNotice,
+            )
+            return@SilentVoixTheme
+        }
+        val role = session.account.role
         val tap = rememberHapticTap(settings.haptics)
         AppShell(
-            destination = destination,
+            destinations = destinationsFor(role),
+            destination = shownDestination,
             onDestinationChange = {
                 if (it != destination) tap()
                 destination = it
@@ -159,7 +212,7 @@ fun SilentVoixApp() {
             // Tabs slide a little towards the one chosen while they cross-fade. Each keeps its saveable
             // state (history filters, a typed draft) while switching.
             AnimatedContent(
-                targetState = destination,
+                targetState = shownDestination,
                 transitionSpec = {
                     val forward = targetState.ordinal > initialState.ordinal
                     val shift = { width: Int -> if (forward) width / 12 else -width / 12 }
@@ -235,13 +288,44 @@ fun SilentVoixApp() {
                         onSpeak = { speak(it, true) },
                         contentPadding = contentPadding,
                     )
+                    AppDestination.ADMIN -> AdminScreen(
+                        api = app.api,
+                        session = session,
+                        backendStatus = backendStatus,
+                        onRetryBackend = retryHealthCheck,
+                        onUnauthorized = { signOut(true) },
+                        onForbidden = { accountCheck++ },
+                        showMessage = showMessage,
+                        hapticsEnabled = settings.haptics,
+                        contentPadding = contentPadding,
+                    )
                     AppDestination.SETTINGS -> SettingsScreen(
                         settings = settings,
                         onSettingsChange = { changed ->
                             app.appScope.launch { app.settingsRepository.update { changed } }
                         },
-                        backendStatus = backendStatus,
-                        onRetryBackend = retryHealthCheck,
+                        account = session.account,
+                        onSignOut = { signOut(false) },
+                        sendingFeedback = sendingFeedback,
+                        feedbackSentCount = feedbackSent,
+                        onSendFeedback = { kind, message ->
+                            sendingFeedback = true
+                            scope.launch {
+                                val result = app.api.sendFeedback(session.token, kind, message)
+                                sendingFeedback = false
+                                when (result) {
+                                    is ApiResult.Ok -> {
+                                        feedbackSent++
+                                        showMessage(context.getString(R.string.feedback_sent))
+                                    }
+                                    is ApiResult.Failed -> if (result.error == ApiError.UNAUTHORIZED) {
+                                        signOut(true)
+                                    } else {
+                                        showMessage(context.getString(apiErrorRes(result.error)))
+                                    }
+                                }
+                            }
+                        },
                         speechStatus = speech.status,
                         onPreviewSpeech = { speak(it, true) },
                         contentPadding = contentPadding,
@@ -260,6 +344,7 @@ fun SilentVoixApp() {
  */
 @Composable
 internal fun AppShell(
+    destinations: List<AppDestination>,
     destination: AppDestination,
     onDestinationChange: (AppDestination) -> Unit,
     snackbarHostState: SnackbarHostState,
@@ -297,7 +382,7 @@ internal fun AppShell(
             navigationRailContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
         navigationSuiteItems = {
-            AppDestination.entries.forEach { target ->
+            destinations.forEach { target ->
                 item(
                     selected = target == destination,
                     onClick = { onDestinationChange(target) },
@@ -327,5 +412,9 @@ private fun destinationIcon(destination: AppDestination): ImageVector = when (de
     AppDestination.TRANSLATE -> ImageVector.vectorResource(R.drawable.ic_translate)
     AppDestination.SPEAK -> ImageVector.vectorResource(R.drawable.ic_chat)
     AppDestination.HISTORY -> ImageVector.vectorResource(R.drawable.ic_history)
+    AppDestination.ADMIN -> ImageVector.vectorResource(R.drawable.ic_admin)
     AppDestination.SETTINGS -> Icons.Filled.Settings
 }
+
+/** The stored session once read: a session, or null when nobody is signed in. */
+private data class StoredSession(val session: Session?)
