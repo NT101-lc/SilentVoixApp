@@ -5,6 +5,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -41,7 +43,7 @@ class PhraseRepositoryTest {
             add("Cho tôi một ly cà phê sữa")
             add("Tôi đến đón con")
         }
-        scopes.removeAt(0).cancel()
+        scopes.removeAt(0).coroutineContext.job.cancelAndJoin()
 
         assertEquals(
             listOf("Tôi đến đón con", "Cho tôi một ly cà phê sữa"),

@@ -7,6 +7,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -41,7 +43,7 @@ class SessionStoreTest {
     @Test
     fun `a session survives an app restart`() = runBlocking {
         SessionStore(openStore()).save(admin)
-        scopes.forEach { it.cancel() }
+        scopes.forEach { it.coroutineContext.job.cancelAndJoin() }
 
         assertEquals(admin, SessionStore(openStore()).session.first())
     }

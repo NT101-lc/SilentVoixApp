@@ -13,6 +13,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -52,7 +54,7 @@ class SettingsRepositoryTest {
             haptics = false,
         )
         SettingsRepository(openStore()).update { changed }
-        scopes.forEach { it.cancel() } // "process death": the first store is gone.
+        scopes.forEach { it.coroutineContext.job.cancelAndJoin() } // "process death": the first store is gone.
 
         assertEquals(changed, SettingsRepository(openStore()).settings.first())
     }
@@ -76,7 +78,7 @@ class SettingsRepositoryTest {
         SettingsRepository(openStore()).update {
             it.copy(celebratedMilestones = setOf(Milestone.STREAK_3, Milestone.TOTAL_10))
         }
-        scopes.forEach { it.cancel() } // "process death": the first store is gone.
+        scopes.forEach { it.coroutineContext.job.cancelAndJoin() } // "process death": the first store is gone.
 
         assertEquals(
             setOf(Milestone.STREAK_3, Milestone.TOTAL_10),
