@@ -45,8 +45,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -65,15 +63,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.silentvoix.app.R
-import com.silentvoix.app.data.api.ApiError
-import com.silentvoix.app.data.api.ApiResult
-import com.silentvoix.app.data.api.SilentVoixApi
-import com.silentvoix.app.data.auth.FormErrors
-import com.silentvoix.app.data.auth.Session
-import com.silentvoix.app.data.auth.normalizeEmail
-import com.silentvoix.app.data.auth.validateRegister
-import com.silentvoix.app.data.auth.validateSignIn
+import com.silentvoix.app.domain.auth.FormErrors
+import com.silentvoix.app.domain.auth.Session
 import com.silentvoix.app.ui.common.SegmentedControl
 import com.silentvoix.app.ui.common.apiErrorMessage
 import com.silentvoix.app.ui.common.formErrorMessage
@@ -82,7 +75,6 @@ import com.silentvoix.app.ui.scene.SkyScene
 import com.silentvoix.app.ui.scene.TimeOfDay
 import com.silentvoix.app.ui.scene.skyPalette
 import java.time.LocalTime
-import kotlinx.coroutines.launch
 
 enum class AuthMode { SIGN_IN, REGISTER }
 
@@ -99,63 +91,18 @@ data class AuthForm(
  * instead of the app whenever nobody is signed in. [notice] explains why, e.g. an expired session.
  */
 @Composable
-fun AuthScreen(api: SilentVoixApi, onSignedIn: (Session) -> Unit, notice: String? = null) {
-    var mode by rememberSaveable { mutableStateOf(AuthMode.SIGN_IN) }
-    var email by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
-    var confirm by rememberSaveable { mutableStateOf("") }
-    var name by rememberSaveable { mutableStateOf("") }
-    // Field errors show only after a first attempt, not while someone is still typing.
-    var attempted by rememberSaveable { mutableStateOf(false) }
-    var submitting by remember { mutableStateOf(false) }
-    var serverError by remember { mutableStateOf<ApiError?>(null) }
-    val scope = rememberCoroutineScope()
-
-    val form = AuthForm(email, password, confirm, name)
-    val errors = validate(mode, form)
+fun AuthScreen(viewModel: AuthViewModel, onSignedIn: (Session) -> Unit, notice: String? = null) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
     AuthContent(
-        mode = mode,
-        onModeChange = {
-            mode = it
-            attempted = false
-            serverError = null
-        },
-        form = form,
-        onFormChange = {
-            email = it.email
-            password = it.password
-            confirm = it.confirm
-            name = it.name
-            serverError = null
-        },
-        errors = if (attempted) errors else FormErrors(),
-        serverError = serverError?.let { apiErrorMessage(it) } ?: notice,
-        submitting = submitting,
-        onSubmit = {
-            attempted = true
-            if (errors.isValid && !submitting) {
-                submitting = true
-                serverError = null
-                scope.launch {
-                    val address = normalizeEmail(email)
-                    val result = when (mode) {
-                        AuthMode.SIGN_IN -> api.login(address, password)
-                        AuthMode.REGISTER -> api.register(address, password, name.trim().ifEmpty { null })
-                    }
-                    submitting = false
-                    when (result) {
-                        is ApiResult.Ok -> onSignedIn(result.value)
-                        is ApiResult.Failed -> serverError = result.error
-                    }
-                }
-            }
-        },
+        mode = state.mode,
+        onModeChange = viewModel::setMode,
+        form = state.form,
+        onFormChange = viewModel::updateForm,
+        errors = state.shownErrors,
+        serverError = state.serverError?.let { apiErrorMessage(it) } ?: notice,
+        submitting = state.submitting,
+        onSubmit = { viewModel.submit(onSignedIn) },
     )
-}
-
-private fun validate(mode: AuthMode, form: AuthForm): FormErrors = when (mode) {
-    AuthMode.SIGN_IN -> validateSignIn(form.email, form.password)
-    AuthMode.REGISTER -> validateRegister(form.email, form.password, form.confirm, form.name)
 }
 
 /**

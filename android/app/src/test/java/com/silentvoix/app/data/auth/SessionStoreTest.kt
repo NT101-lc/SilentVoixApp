@@ -1,5 +1,9 @@
 package com.silentvoix.app.data.auth
 
+import com.silentvoix.app.domain.auth.Account
+import com.silentvoix.app.domain.auth.Session
+import com.silentvoix.app.domain.auth.UserRole
+
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey

@@ -5,10 +5,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
-import com.silentvoix.app.data.progress.Milestone
+import com.silentvoix.app.domain.progress.Milestone
 import com.silentvoix.app.speech.SpeechRate
-import com.silentvoix.app.ui.settings.AppSettings
-import com.silentvoix.app.ui.theme.ThemeMode
+import com.silentvoix.app.domain.settings.AppSettings
+import com.silentvoix.app.domain.settings.ThemeMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,7 +41,7 @@ class SettingsRepositoryTest {
 
     @Test
     fun `defaults are used when nothing is stored`() = runBlocking {
-        assertEquals(AppSettings(), SettingsRepository(openStore()).settings.first())
+        assertEquals(AppSettings(), DataStoreSettingsRepository(openStore()).settings.first())
     }
 
     @Test
@@ -53,10 +53,10 @@ class SettingsRepositoryTest {
             speechRate = 1.5f,
             haptics = false,
         )
-        SettingsRepository(openStore()).update { changed }
+        DataStoreSettingsRepository(openStore()).update { changed }
         scopes.forEach { it.coroutineContext.job.cancelAndJoin() } // "process death": the first store is gone.
 
-        assertEquals(changed, SettingsRepository(openStore()).settings.first())
+        assertEquals(changed, DataStoreSettingsRepository(openStore()).settings.first())
     }
 
     @Test
@@ -67,7 +67,7 @@ class SettingsRepositoryTest {
             it[floatPreferencesKey("speech_rate")] = 9f
         }
 
-        val settings = SettingsRepository(store).settings.first()
+        val settings = DataStoreSettingsRepository(store).settings.first()
 
         assertEquals(ThemeMode.SYSTEM, settings.themeMode)
         assertEquals(SpeechRate.MAX, settings.speechRate)
@@ -75,14 +75,14 @@ class SettingsRepositoryTest {
 
     @Test
     fun `celebrated milestones are remembered across restarts`() = runBlocking {
-        SettingsRepository(openStore()).update {
+        DataStoreSettingsRepository(openStore()).update {
             it.copy(celebratedMilestones = setOf(Milestone.STREAK_3, Milestone.TOTAL_10))
         }
         scopes.forEach { it.coroutineContext.job.cancelAndJoin() } // "process death": the first store is gone.
 
         assertEquals(
             setOf(Milestone.STREAK_3, Milestone.TOTAL_10),
-            SettingsRepository(openStore()).settings.first().celebratedMilestones,
+            DataStoreSettingsRepository(openStore()).settings.first().celebratedMilestones,
         )
     }
 
@@ -91,6 +91,6 @@ class SettingsRepositoryTest {
         val store = openStore()
         store.edit { it[stringSetPreferencesKey("celebrated_milestones")] = setOf("STREAK_3", "STREAK_9000") }
 
-        assertEquals(setOf(Milestone.STREAK_3), SettingsRepository(store).settings.first().celebratedMilestones)
+        assertEquals(setOf(Milestone.STREAK_3), DataStoreSettingsRepository(store).settings.first().celebratedMilestones)
     }
 }

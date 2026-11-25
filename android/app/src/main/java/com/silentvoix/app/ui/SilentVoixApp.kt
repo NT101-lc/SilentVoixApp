@@ -8,13 +8,6 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
-import com.silentvoix.app.ui.scene.TimeOfDay
-import com.silentvoix.app.ui.scene.paperGrain
-import com.silentvoix.app.ui.scene.skyPalette
-import java.time.LocalTime
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -39,76 +32,73 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.silentvoix.app.BuildConfig
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.silentvoix.app.R
-import com.silentvoix.app.data.backend.BackendHealthClient
-import com.silentvoix.app.SilentVoixApplication
-import com.silentvoix.app.data.api.ApiError
-import com.silentvoix.app.data.api.ApiResult
-import com.silentvoix.app.data.auth.Session
-import com.silentvoix.app.data.auth.SessionRefresh
-import com.silentvoix.app.data.backend.BackendStatus
-import com.silentvoix.app.ui.admin.AdminScreen
-import com.silentvoix.app.ui.auth.AuthScreen
-import com.silentvoix.app.ui.common.apiErrorRes
-import kotlinx.coroutines.flow.map
+import com.silentvoix.app.appContainer
+import com.silentvoix.app.domain.settings.ThemeMode
 import com.silentvoix.app.recognition.Recognition
 import com.silentvoix.app.speech.SpeakOutcome
 import com.silentvoix.app.speech.SpeechUnavailableReason
 import com.silentvoix.app.speech.rememberSpeech
+import com.silentvoix.app.ui.admin.AdminScreen
+import com.silentvoix.app.ui.admin.AdminViewModel
+import com.silentvoix.app.ui.auth.AuthScreen
+import com.silentvoix.app.ui.auth.AuthViewModel
+import com.silentvoix.app.ui.common.apiErrorRes
 import com.silentvoix.app.ui.common.rememberHapticTap
 import com.silentvoix.app.ui.history.HistoryScreen
+import com.silentvoix.app.ui.history.HistoryViewModel
 import com.silentvoix.app.ui.home.HomeScreen
+import com.silentvoix.app.ui.home.HomeViewModel
+import com.silentvoix.app.ui.scene.TimeOfDay
+import com.silentvoix.app.ui.scene.paperGrain
+import com.silentvoix.app.ui.scene.skyPalette
 import com.silentvoix.app.ui.settings.SettingsScreen
 import com.silentvoix.app.ui.speak.SpeakScreen
+import com.silentvoix.app.ui.speak.SpeakViewModel
 import com.silentvoix.app.ui.theme.SilentVoixTheme
-import com.silentvoix.app.ui.theme.ThemeMode
 import com.silentvoix.app.ui.translate.TranslateScreen
+import java.time.LocalTime
 import kotlinx.coroutines.launch
 
 /**
- * The app: stores, speech, the session and the destinations. Nobody signed in sees the sign-in
- * screen; a user gets five tabs, an admin also gets Quản trị. It opens on the home dashboard; the
- * camera is only ever started from the Translate screen, or by the home screen's explicit action.
+ * The app (user layer): speech, navigation and the destinations. State and decisions live in
+ * [AppViewModel] and each screen's ViewModel; storage and the backend sit behind the domain's
+ * repository interfaces. Nobody signed in sees the sign-in screen; a user gets five tabs, an
+ * admin also gets Quản trị. It opens on the home dashboard; the camera is only ever started from
+ * the Translate screen, or by the home screen's explicit action.
  */
 @Composable
 fun SilentVoixApp() {
-    val app = LocalContext.current.applicationContext as SilentVoixApplication
+    val app: AppViewModel = viewModel { AppViewModel(appContainer()) }
     // Null until the stored settings are read (a few ms); drawing nothing meanwhile avoids a
     // flash of the default theme before a saved dark theme applies.
-    val storedSettings by app.settingsRepository.settings.collectAsStateWithLifecycle(initialValue = null)
+    val storedSettings by app.settings.collectAsStateWithLifecycle()
     val settings = storedSettings ?: return
     // Same for the session: "not read yet" must not flash the sign-in screen.
-    val sessionFlow = remember { app.sessionStore.session.map { StoredSession(it) } }
-    val stored by sessionFlow.collectAsStateWithLifecycle(initialValue = null)
+    val stored by app.session.collectAsStateWithLifecycle()
     val loadedSession = stored ?: return
-    // Why the sign-in screen is showing, when it was not the person's choice.
-    var signInNotice by rememberSaveable { mutableStateOf<String?>(null) }
+    val sessionExpired by app.sessionExpired.collectAsStateWithLifecycle()
+    val backendStatus by app.backendStatus.collectAsStateWithLifecycle()
+    val feedbackForm by app.feedbackForm.collectAsStateWithLifecycle()
     var destination by rememberSaveable { mutableStateOf(AppDestination.HOME) }
     val screenStateHolder = rememberSaveableStateHolder()
     // Set by the home screen's "open camera" action; Translate starts a session when it sees it.
     var translateStartRequested by remember { mutableStateOf(false) }
-
-    val healthClient = remember { BackendHealthClient(BuildConfig.BACKEND_BASE_URL) }
-    var backendStatus by remember { mutableStateOf<BackendStatus>(BackendStatus.Checking) }
-    var healthCheckRequest by remember { mutableIntStateOf(0) }
-    LaunchedEffect(healthCheckRequest) {
-        backendStatus = BackendStatus.Checking
-        backendStatus = healthClient.fetchStatus()
-    }
-    val retryHealthCheck: () -> Unit = { healthCheckRequest++ }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -120,6 +110,15 @@ fun SilentVoixApp() {
     }
 
     val context = LocalContext.current
+    LaunchedEffect(app) {
+        app.events.collect { event ->
+            when (event) {
+                AppEvent.FeedbackSent -> showMessage(context.getString(R.string.feedback_sent))
+                is AppEvent.Failed -> showMessage(context.getString(apiErrorRes(event.error)))
+            }
+        }
+    }
+
     // Explains why nothing was heard; silent success needs no message.
     val reportSpeakOutcome: (SpeakOutcome) -> Unit = { outcome ->
         val messageRes = when (outcome) {
@@ -140,12 +139,8 @@ fun SilentVoixApp() {
         val outcome = speech.speak(text)
         if (userInitiated) reportSpeakOutcome(outcome)
     }
-    // Every recognised phrase is saved to history; auto-speak stays quiet if speech is unavailable
-    // so an unavailable voice does not raise a message on every gesture.
     val onNewResult: (Recognition) -> Unit = { recognition ->
-        app.appScope.launch {
-            app.historyRepository.add(recognition.text, recognition.confidencePercent)
-        }
+        app.onRecognized(recognition.text, recognition.confidencePercent)
         if (settings.autoSpeak) speak(recognition.text, false)
     }
 
@@ -157,28 +152,13 @@ fun SilentVoixApp() {
     }
 
     val session = loadedSession.session
-    val signOut: (expired: Boolean) -> Unit = { expired ->
-        signInNotice = if (expired) context.getString(R.string.session_expired) else null
-        destination = AppDestination.HOME
-        app.appScope.launch {
-            // Best effort: the server forgets the token if it can be reached; this device forgets it regardless.
-            session?.let { app.api.logout(it.token) }
-            app.sessionStore.clear()
-        }
+    val signOut: (expired: Boolean) -> Unit = { expired -> app.signOut(expired) }
+    // Whoever signs in next starts on the home screen, however the last session ended.
+    LaunchedEffect(session == null) {
+        if (session == null) destination = AppDestination.HOME
     }
-    // Asks the server who this is: on start, and whenever an admin call is refused (role taken away).
-    var accountCheck by remember { mutableIntStateOf(0) }
-    LaunchedEffect(session?.token, accountCheck) {
-        val token = session?.token ?: return@LaunchedEffect
-        when (val refresh = SessionRefresh.from(app.api.me(token))) {
-            is SessionRefresh.Replace -> app.sessionStore.updateAccount(refresh.account)
-            SessionRefresh.SignOut -> signOut(true)
-            // Offline or the server is down: keep working with the stored account.
-            SessionRefresh.Keep -> Unit
-        }
-    }
-    var sendingFeedback by remember { mutableStateOf(false) }
-    var feedbackSent by rememberSaveable { mutableIntStateOf(0) }
+    // Asks the server who this is on start (and when the token changes).
+    LaunchedEffect(session?.token) { app.refreshAccount() }
 
     // The home and sign-in screens are painted right under the status bar: their icons follow the sky.
     val skyIsLight = skyPalette(TimeOfDay.from(LocalTime.now().hour)).isLight
@@ -189,12 +169,9 @@ fun SilentVoixApp() {
     ) {
         if (session == null) {
             AuthScreen(
-                api = app.api,
-                onSignedIn = { signedIn ->
-                    signInNotice = null
-                    app.appScope.launch { app.sessionStore.save(signedIn) }
-                },
-                notice = signInNotice,
+                viewModel = viewModel { AuthViewModel(appContainer().authRepository) },
+                onSignedIn = app::onSignedIn,
+                notice = if (sessionExpired) context.getString(R.string.session_expired) else null,
             )
             return@SilentVoixTheme
         }
@@ -224,12 +201,12 @@ fun SilentVoixApp() {
             screenStateHolder.SaveableStateProvider(target.name) {
                 when (target) {
                     AppDestination.HOME -> HomeScreen(
-                        historyRepository = app.historyRepository,
+                        viewModel = viewModel { HomeViewModel(appContainer()) },
                         isDarkTheme = isDark,
                         // Leaves "follow the system" for an explicit choice: the opposite of what is showing.
                         onToggleTheme = {
                             val next = if (isDark) ThemeMode.LIGHT else ThemeMode.DARK
-                            app.appScope.launch { app.settingsRepository.update { it.copy(themeMode = next) } }
+                            app.updateSettings { it.copy(themeMode = next) }
                         },
                         onStartTranslate = {
                             translateStartRequested = true
@@ -240,11 +217,6 @@ fun SilentVoixApp() {
                         hapticsEnabled = settings.haptics,
                         onSpeak = { speak(it, true) },
                         celebrated = settings.celebratedMilestones,
-                        onCelebrated = { milestones ->
-                            app.appScope.launch {
-                                app.settingsRepository.update { it.copy(celebratedMilestones = milestones) }
-                            }
-                        },
                         contentPadding = contentPadding,
                     )
                     AppDestination.TRANSLATE -> TranslateScreen(
@@ -253,7 +225,7 @@ fun SilentVoixApp() {
                         hapticsEnabled = settings.haptics,
                         onToggleAutoSpeak = {
                             val enabled = !settings.autoSpeak
-                            app.appScope.launch { app.settingsRepository.update { it.copy(autoSpeak = enabled) } }
+                            app.updateSettings { it.copy(autoSpeak = enabled) }
                         },
                         onNewResult = onNewResult,
                         onReplay = { speak(it, true) },
@@ -262,70 +234,43 @@ fun SilentVoixApp() {
                         onStartRequestHandled = { translateStartRequested = false },
                     )
                     AppDestination.SPEAK -> SpeakScreen(
-                        phraseRepository = app.phraseRepository,
-                        onSavePhrase = { phrase ->
-                            app.appScope.launch { app.phraseRepository.add(phrase) }
-                            showMessage(context.getString(R.string.speak_saved))
-                        },
-                        onRemovePhrase = { phrase -> app.appScope.launch { app.phraseRepository.remove(phrase) } },
+                        viewModel = viewModel { SpeakViewModel(appContainer()) },
+                        onSaved = { showMessage(context.getString(R.string.speak_saved)) },
                         hapticsEnabled = settings.haptics,
                         onSpeak = { speak(it, true) },
                         contentPadding = contentPadding,
                     )
                     AppDestination.HISTORY -> HistoryScreen(
-                        historyRepository = app.historyRepository,
-                        onToggleFavourite = { entry ->
-                            app.appScope.launch {
-                                app.historyRepository.setFavourite(entry.id, !entry.isFavourite)
-                            }
-                        },
-                        onClearAll = {
-                            app.appScope.launch { app.historyRepository.clear() }
-                            showMessage(context.getString(R.string.history_cleared))
-                        },
+                        viewModel = viewModel { HistoryViewModel(appContainer()) },
+                        onCleared = { showMessage(context.getString(R.string.history_cleared)) },
                         onNavigateToTranslate = { destination = AppDestination.TRANSLATE },
                         hapticsEnabled = settings.haptics,
                         onSpeak = { speak(it, true) },
                         contentPadding = contentPadding,
                     )
                     AppDestination.ADMIN -> AdminScreen(
-                        api = app.api,
-                        session = session,
+                        // One per session: a new sign-in never sees the last one's data or token.
+                        viewModel = viewModel(key = "admin-${session.token.hashCode()}") {
+                            AdminViewModel(appContainer().adminRepository, session.token)
+                        },
+                        currentUserId = session.account.id,
                         backendStatus = backendStatus,
-                        onRetryBackend = retryHealthCheck,
+                        onRetryBackend = app::checkBackend,
                         onUnauthorized = { signOut(true) },
-                        onForbidden = { accountCheck++ },
+                        // A 403 means the role was taken away: refresh the account so the tab disappears.
+                        onForbidden = app::refreshAccount,
                         showMessage = showMessage,
                         hapticsEnabled = settings.haptics,
                         contentPadding = contentPadding,
                     )
                     AppDestination.SETTINGS -> SettingsScreen(
                         settings = settings,
-                        onSettingsChange = { changed ->
-                            app.appScope.launch { app.settingsRepository.update { changed } }
-                        },
+                        onSettingsChange = { changed -> app.updateSettings { changed } },
                         account = session.account,
                         onSignOut = { signOut(false) },
-                        sendingFeedback = sendingFeedback,
-                        feedbackSentCount = feedbackSent,
-                        onSendFeedback = { kind, message ->
-                            sendingFeedback = true
-                            scope.launch {
-                                val result = app.api.sendFeedback(session.token, kind, message)
-                                sendingFeedback = false
-                                when (result) {
-                                    is ApiResult.Ok -> {
-                                        feedbackSent++
-                                        showMessage(context.getString(R.string.feedback_sent))
-                                    }
-                                    is ApiResult.Failed -> if (result.error == ApiError.UNAUTHORIZED) {
-                                        signOut(true)
-                                    } else {
-                                        showMessage(context.getString(apiErrorRes(result.error)))
-                                    }
-                                }
-                            }
-                        },
+                        sendingFeedback = feedbackForm.sending,
+                        feedbackSentCount = feedbackForm.sentCount,
+                        onSendFeedback = app::sendFeedback,
                         speechStatus = speech.status,
                         onPreviewSpeech = { speak(it, true) },
                         contentPadding = contentPadding,
@@ -416,5 +361,3 @@ private fun destinationIcon(destination: AppDestination): ImageVector = when (de
     AppDestination.SETTINGS -> Icons.Filled.Settings
 }
 
-/** The stored session once read: a session, or null when nobody is signed in. */
-private data class StoredSession(val session: Session?)

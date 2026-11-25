@@ -17,11 +17,8 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import com.silentvoix.app.data.progress.Milestone
-import com.silentvoix.app.data.progress.milestoneToCelebrate
-import com.silentvoix.app.data.progress.reachedMilestones
+import com.silentvoix.app.domain.progress.Milestone
 import com.silentvoix.app.ui.common.pullUp
 import com.silentvoix.app.ui.common.pressBounce
 import com.silentvoix.app.ui.scene.LeafBurstEffect
@@ -93,13 +90,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.silentvoix.app.R
-import com.silentvoix.app.data.history.DayCount
-import com.silentvoix.app.data.history.EntryDay
-import com.silentvoix.app.data.history.HistoryEntry
-import com.silentvoix.app.data.history.HistoryRepository
-import com.silentvoix.app.data.history.HistoryStats
-import com.silentvoix.app.data.history.entryDay
-import com.silentvoix.app.data.history.historyStats
+import com.silentvoix.app.domain.history.DayCount
+import com.silentvoix.app.domain.history.EntryDay
+import com.silentvoix.app.domain.history.HistoryEntry
+import com.silentvoix.app.domain.history.HistoryStats
+import com.silentvoix.app.domain.history.entryDay
+import com.silentvoix.app.domain.history.historyStats
 import com.silentvoix.app.recognition.HandPose
 import com.silentvoix.app.recognition.SupportedGesture
 import com.silentvoix.app.recognition.SupportedGestures
@@ -125,7 +121,7 @@ private const val RecentCount = 3
  */
 @Composable
 fun HomeScreen(
-    historyRepository: HistoryRepository,
+    viewModel: HomeViewModel,
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
     onStartTranslate: () -> Unit,
@@ -134,25 +130,16 @@ fun HomeScreen(
     hapticsEnabled: Boolean,
     onSpeak: (String) -> Unit,
     celebrated: Set<Milestone>,
-    onCelebrated: (Set<Milestone>) -> Unit,
     contentPadding: PaddingValues,
 ) {
-    // Until the store answers, the dashboard shows zeros rather than a spinner: it settles in a
-    // few milliseconds and the layout does not jump.
-    val entries by historyRepository.entries.collectAsStateWithLifecycle(initialValue = emptyList())
+    val entries by viewModel.entries.collectAsStateWithLifecycle()
+    val celebration by viewModel.celebration.collectAsStateWithLifecycle()
     val tap = rememberHapticTap(hapticsEnabled)
     val nowMillis = System.currentTimeMillis()
     val zone = ZoneId.systemDefault()
 
-    // A new milestone is recorded as celebrated as soon as it shows, together with any smaller ones
-    // reached at the same time, so each is celebrated exactly once.
-    var celebration by rememberSaveable { mutableStateOf<Milestone?>(null) }
     val stats = remember(entries, nowMillis / 60_000, zone) { historyStats(entries, nowMillis, zone) }
-    LaunchedEffect(stats, celebrated) {
-        val next = milestoneToCelebrate(stats, celebrated) ?: return@LaunchedEffect
-        celebration = next
-        onCelebrated(celebrated + reachedMilestones(stats))
-    }
+    LaunchedEffect(stats, celebrated) { viewModel.onStats(stats, celebrated) }
 
     HomeContent(
         entries = entries,
@@ -161,7 +148,7 @@ fun HomeScreen(
         celebration = celebration,
         onDismissCelebration = {
             tap()
-            celebration = null
+            viewModel.dismissCelebration()
         },
         isDarkTheme = isDarkTheme,
         onToggleTheme = {

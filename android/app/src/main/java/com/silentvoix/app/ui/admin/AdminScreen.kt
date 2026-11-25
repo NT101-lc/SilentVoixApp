@@ -47,10 +47,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -68,20 +66,17 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.silentvoix.app.BuildConfig
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.silentvoix.app.R
-import com.silentvoix.app.data.admin.AdminOverview
-import com.silentvoix.app.data.admin.FeedbackItem
-import com.silentvoix.app.data.admin.FeedbackKind
-import com.silentvoix.app.data.admin.ManagedUser
-import com.silentvoix.app.data.admin.matching
-import com.silentvoix.app.data.api.ApiError
-import com.silentvoix.app.data.api.ApiResult
-import com.silentvoix.app.data.api.SilentVoixApi
-import com.silentvoix.app.data.auth.Session
-import com.silentvoix.app.data.auth.UserRole
-import com.silentvoix.app.data.backend.BackendStatus
-import com.silentvoix.app.data.history.EntryDay
-import com.silentvoix.app.data.history.entryDay
+import com.silentvoix.app.domain.admin.AdminOverview
+import com.silentvoix.app.domain.admin.FeedbackItem
+import com.silentvoix.app.domain.admin.FeedbackKind
+import com.silentvoix.app.domain.admin.ManagedUser
+import com.silentvoix.app.domain.admin.matching
+import com.silentvoix.app.domain.auth.UserRole
+import com.silentvoix.app.domain.backend.BackendStatus
+import com.silentvoix.app.domain.history.EntryDay
+import com.silentvoix.app.domain.history.entryDay
 import com.silentvoix.app.ui.common.BackendStatusRow
 import com.silentvoix.app.ui.common.ScreenHeader
 import com.silentvoix.app.ui.common.SectionLabel
@@ -95,27 +90,8 @@ import com.silentvoix.app.ui.theme.EyebrowStyle
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
 
 enum class AdminSection { OVERVIEW, USERS, FEEDBACK }
-
-/** Something fetched from the server: still coming, failed, or here. */
-sealed interface Loadable<out T> {
-    data object Loading : Loadable<Nothing>
-
-    data class Failed(val error: ApiError) : Loadable<Nothing>
-
-    data class Loaded<T>(val value: T) : Loadable<T>
-}
-
-/** Account actions an admin can take from a user's menu. */
-enum class UserAction { MAKE_ADMIN, REMOVE_ADMIN, LOCK, UNLOCK }
-
-private fun <T> ApiResult<T>.toLoadable(): Loadable<T> = when (this) {
-    is ApiResult.Ok -> Loadable.Loaded(value)
-    is ApiResult.Failed -> Loadable.Failed(error)
-}
 
 /**
  * The admin tab. Everything comes from the server, which re-checks the role on every call: a 401
@@ -124,8 +100,8 @@ private fun <T> ApiResult<T>.toLoadable(): Loadable<T> = when (this) {
  */
 @Composable
 fun AdminScreen(
-    api: SilentVoixApi,
-    session: Session,
+    viewModel: AdminViewModel,
+    currentUserId: String,
     backendStatus: BackendStatus,
     onRetryBackend: () -> Unit,
     onUnauthorized: () -> Unit,
@@ -136,100 +112,45 @@ fun AdminScreen(
 ) {
     var section by rememberSaveable { mutableStateOf(AdminSection.OVERVIEW) }
     var query by rememberSaveable { mutableStateOf("") }
-    var openOnly by rememberSaveable { mutableStateOf(true) }
-    var overview by remember { mutableStateOf<Loadable<AdminOverview>>(Loadable.Loading) }
-    var users by remember { mutableStateOf<Loadable<List<ManagedUser>>>(Loadable.Loading) }
-    var feedback by remember { mutableStateOf<Loadable<List<FeedbackItem>>>(Loadable.Loading) }
-    var busy by remember { mutableStateOf(emptySet<String>()) }
-    var reload by remember { mutableIntStateOf(0) }
-    val scope = rememberCoroutineScope()
-    val token = session.token
-
-    // Any failure that means "not allowed any more" is handled once, here.
-    fun <T> ApiResult<T>.checked(): ApiResult<T> {
-        if (this is ApiResult.Failed) {
-            when (error) {
-                ApiError.UNAUTHORIZED -> onUnauthorized()
-                ApiError.FORBIDDEN -> onForbidden()
-                else -> Unit
-            }
-        }
-        return this
-    }
-
-    LaunchedEffect(reload) {
-        val o = async { api.overview(token).checked().toLoadable() }
-        val u = async { api.users(token).checked().toLoadable() }
-        overview = o.await()
-        users = u.await()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val refresh = {
+        viewModel.refresh()
         onRetryBackend()
     }
-    LaunchedEffect(reload, openOnly) {
-        feedback = Loadable.Loading
-        feedback = api.feedback(token, openOnly).checked().toLoadable()
-    }
+    // Fresh numbers every time the tab opens.
+    LaunchedEffect(viewModel) { refresh() }
 
     val context = LocalContext.current
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                AdminEvent.Unauthorized -> onUnauthorized()
+                AdminEvent.Forbidden -> onForbidden()
+                is AdminEvent.UserUpdated -> showMessage(
+                    context.getString(R.string.admin_user_updated, event.user.displayName ?: event.user.email.orEmpty()),
+                )
+                is AdminEvent.Failed -> showMessage(context.getString(apiErrorRes(event.error)))
+            }
+        }
+    }
+
     AdminContent(
         section = section,
         onSectionChange = { section = it },
-        overview = overview,
-        users = users,
-        feedback = feedback,
+        overview = state.overview,
+        users = state.users,
+        feedback = state.feedback,
         query = query,
         onQueryChange = { query = it },
-        feedbackOpenOnly = openOnly,
-        onFeedbackOpenOnlyChange = { openOnly = it },
-        currentUserId = session.account.id,
-        busyIds = busy,
+        feedbackOpenOnly = state.feedbackOpenOnly,
+        onFeedbackOpenOnlyChange = viewModel::setFeedbackOpenOnly,
+        currentUserId = currentUserId,
+        busyIds = state.busyIds,
         backendStatus = backendStatus,
         onRetryBackend = onRetryBackend,
-        onRefresh = { reload++ },
-        onUserAction = { user, action ->
-            busy = busy + user.id
-            scope.launch {
-                val result = when (action) {
-                    UserAction.MAKE_ADMIN -> api.updateUser(token, user.id, role = UserRole.ADMIN)
-                    UserAction.REMOVE_ADMIN -> api.updateUser(token, user.id, role = UserRole.USER)
-                    UserAction.LOCK -> api.updateUser(token, user.id, locked = true)
-                    UserAction.UNLOCK -> api.updateUser(token, user.id, locked = false)
-                }.checked()
-                busy = busy - user.id
-                when (result) {
-                    is ApiResult.Ok -> {
-                        (users as? Loadable.Loaded)?.let { loaded ->
-                            users = Loadable.Loaded(loaded.value.map { if (it.id == user.id) result.value else it })
-                        }
-                        showMessage(
-                            context.getString(R.string.admin_user_updated, result.value.displayName ?: result.value.email.orEmpty()),
-                        )
-                        overview = api.overview(token).checked().toLoadable()
-                    }
-                    is ApiResult.Failed -> showMessage(context.getString(apiErrorRes(result.error)))
-                }
-            }
-        },
-        onToggleResolved = { item ->
-            busy = busy + item.id
-            scope.launch {
-                val result = api.setResolved(token, item.id, !item.isResolved).checked()
-                busy = busy - item.id
-                when (result) {
-                    is ApiResult.Ok -> {
-                        (feedback as? Loadable.Loaded)?.let { loaded ->
-                            feedback = Loadable.Loaded(
-                                loaded.value
-                                    .map { if (it.id == item.id) result.value else it }
-                                    // In the open inbox a handled item leaves at once.
-                                    .filter { !openOnly || !it.isResolved },
-                            )
-                        }
-                        overview = api.overview(token).checked().toLoadable()
-                    }
-                    is ApiResult.Failed -> showMessage(context.getString(apiErrorRes(result.error)))
-                }
-            }
-        },
+        onRefresh = refresh,
+        onUserAction = viewModel::onUserAction,
+        onToggleResolved = viewModel::onToggleResolved,
         hapticsEnabled = hapticsEnabled,
         nowMillis = System.currentTimeMillis(),
         zone = ZoneId.systemDefault(),

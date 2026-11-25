@@ -1,5 +1,9 @@
 package com.silentvoix.app.data.backend
 
+import com.silentvoix.app.domain.backend.BackendStatus
+import com.silentvoix.app.domain.backend.DatabaseState
+
+import com.silentvoix.app.domain.backend.BackendHealthRepository
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -12,9 +16,9 @@ import org.json.JSONObject
  * Calls the SilentVoix backend health endpoint. The app only ever talks to the backend;
  * database access stays on the server.
  */
-class BackendHealthClient(private val baseUrl: String) {
+class BackendHealthClient(private val baseUrl: String) : BackendHealthRepository {
 
-    suspend fun fetchStatus(): BackendStatus = withContext(Dispatchers.IO) {
+    override suspend fun fetchStatus(): BackendStatus = withContext(Dispatchers.IO) {
         var connection: HttpURLConnection? = null
         try {
             connection = (URL("${baseUrl.trimEnd('/')}/api/v1/health").openConnection() as HttpURLConnection).apply {

@@ -29,8 +29,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.silentvoix.app.ui.theme.EyebrowStyle
 import com.silentvoix.app.R
-import com.silentvoix.app.data.backend.BackendStatus
-import com.silentvoix.app.data.backend.DatabaseState
+import com.silentvoix.app.domain.backend.BackendStatus
+import com.silentvoix.app.domain.backend.DatabaseState
 
 @Composable
 fun backendStatusText(status: BackendStatus): String = stringResource(

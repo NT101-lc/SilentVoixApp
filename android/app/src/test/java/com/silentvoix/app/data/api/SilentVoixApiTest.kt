@@ -1,8 +1,11 @@
 package com.silentvoix.app.data.api
 
-import com.silentvoix.app.data.admin.FeedbackKind
-import com.silentvoix.app.data.auth.Account
-import com.silentvoix.app.data.auth.UserRole
+import com.silentvoix.app.domain.common.ApiError
+import com.silentvoix.app.domain.common.ApiResult
+
+import com.silentvoix.app.domain.admin.FeedbackKind
+import com.silentvoix.app.domain.auth.Account
+import com.silentvoix.app.domain.auth.UserRole
 import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.runBlocking

@@ -10,6 +10,7 @@ import java.util.UUID;
  */
 public record CurrentUser(Account account, UUID deviceId, UUID sessionId) {
 
+    public static final String ROLE_USER = "user";
     public static final String ROLE_ADMIN = "admin";
 
     public UUID id() {

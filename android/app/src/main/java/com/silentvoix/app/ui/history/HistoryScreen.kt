@@ -38,9 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,12 +56,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.silentvoix.app.R
 import com.silentvoix.app.ui.scene.skyWash
-import com.silentvoix.app.data.history.EntryDay
-import com.silentvoix.app.data.history.HistoryEntry
-import com.silentvoix.app.data.history.HistoryRepository
-import com.silentvoix.app.data.history.HistoryUiState
-import com.silentvoix.app.data.history.asHistoryUiState
-import com.silentvoix.app.data.history.entryDay
+import com.silentvoix.app.domain.history.EntryDay
+import com.silentvoix.app.domain.history.HistoryEntry
+import com.silentvoix.app.domain.history.entryDay
 import com.silentvoix.app.ui.common.ScreenHeader
 import com.silentvoix.app.ui.common.SectionLabel
 import com.silentvoix.app.ui.common.SegmentedControl
@@ -84,20 +79,15 @@ private val ContentMaxWidth = 720.dp
 
 @Composable
 fun HistoryScreen(
-    historyRepository: HistoryRepository,
-    onToggleFavourite: (HistoryEntry) -> Unit,
-    onClearAll: () -> Unit,
+    viewModel: HistoryViewModel,
+    onCleared: () -> Unit,
     onNavigateToTranslate: () -> Unit,
     hapticsEnabled: Boolean,
     onSpeak: (String) -> Unit,
     contentPadding: PaddingValues,
 ) {
     var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
-    // Bumping this re-subscribes to the store after an error.
-    var loadAttempt by remember { mutableIntStateOf(0) }
-    val state by remember(historyRepository, loadAttempt) {
-        historyRepository.entries.asHistoryUiState()
-    }.collectAsStateWithLifecycle(initialValue = HistoryUiState.Loading)
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val tap = rememberHapticTap(hapticsEnabled)
 
     HistoryContent(
@@ -111,7 +101,7 @@ fun HistoryScreen(
         zone = ZoneId.systemDefault(),
         onToggleFavourite = {
             tap()
-            onToggleFavourite(it)
+            viewModel.toggleFavourite(it)
         },
         onReplay = {
             tap()
@@ -119,11 +109,12 @@ fun HistoryScreen(
         },
         onClearAll = {
             tap()
-            onClearAll()
+            viewModel.clearAll()
+            onCleared()
         },
         onRetry = {
             tap()
-            loadAttempt++
+            viewModel.retry()
         },
         onNavigateToTranslate = {
             tap()

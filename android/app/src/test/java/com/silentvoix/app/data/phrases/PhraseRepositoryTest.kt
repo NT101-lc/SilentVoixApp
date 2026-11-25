@@ -1,5 +1,6 @@
 package com.silentvoix.app.data.phrases
 
+import com.silentvoix.app.domain.phrases.PhraseRepository
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,13 +34,13 @@ class PhraseRepositoryTest {
 
     @Test
     fun `nothing is saved to begin with`() = runBlocking {
-        assertEquals(emptyList<String>(), PhraseRepository(openStore()).phrases.first())
+        assertEquals(emptyList<String>(), DataStorePhraseRepository(openStore()).phrases.first())
     }
 
     @Test
     fun `phrases are listed newest first and survive a restart`() = runBlocking {
         val first = openStore()
-        PhraseRepository(first).run {
+        DataStorePhraseRepository(first).run {
             add("Cho tôi một ly cà phê sữa")
             add("Tôi đến đón con")
         }
@@ -47,27 +48,27 @@ class PhraseRepositoryTest {
 
         assertEquals(
             listOf("Tôi đến đón con", "Cho tôi một ly cà phê sữa"),
-            PhraseRepository(openStore()).phrases.first(),
+            DataStorePhraseRepository(openStore()).phrases.first(),
         )
     }
 
     @Test
     fun `line breaks and extra spaces are collapsed so a phrase stays one item`() = runBlocking {
-        val repository = PhraseRepository(openStore())
+        val repository = DataStorePhraseRepository(openStore())
         repository.add("  Tôi cần\n\ngặp   bác sĩ \n")
         assertEquals(listOf("Tôi cần gặp bác sĩ"), repository.phrases.first())
     }
 
     @Test
     fun `blank text is not saved`() = runBlocking {
-        val repository = PhraseRepository(openStore())
+        val repository = DataStorePhraseRepository(openStore())
         repository.add("   \n ")
         assertEquals(emptyList<String>(), repository.phrases.first())
     }
 
     @Test
     fun `saving a phrase again moves it to the top instead of duplicating it`() = runBlocking {
-        val repository = PhraseRepository(openStore())
+        val repository = DataStorePhraseRepository(openStore())
         repository.add("Xin chào")
         repository.add("Cảm ơn")
         repository.add("xin chào")
@@ -76,7 +77,7 @@ class PhraseRepositoryTest {
 
     @Test
     fun `removing a phrase leaves the others in order`() = runBlocking {
-        val repository = PhraseRepository(openStore())
+        val repository = DataStorePhraseRepository(openStore())
         listOf("Một", "Hai", "Ba").forEach { repository.add(it) }
         repository.remove("Hai")
         assertEquals(listOf("Ba", "Một"), repository.phrases.first())
@@ -84,7 +85,7 @@ class PhraseRepositoryTest {
 
     @Test
     fun `the list is capped, dropping the oldest`() = runBlocking {
-        val repository = PhraseRepository(openStore())
+        val repository = DataStorePhraseRepository(openStore())
         repeat(PhraseRepository.MAX_PHRASES + 3) { repository.add("Câu $it") }
         val phrases = repository.phrases.first()
         assertEquals(PhraseRepository.MAX_PHRASES, phrases.size)

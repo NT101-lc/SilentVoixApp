@@ -68,7 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.silentvoix.app.R
 import com.silentvoix.app.ui.scene.skyWash
-import com.silentvoix.app.data.phrases.PhraseRepository
+import com.silentvoix.app.domain.phrases.PhraseRepository
 import com.silentvoix.app.ui.common.FullscreenCaptionDialog
 import com.silentvoix.app.ui.common.ScreenHeader
 import com.silentvoix.app.ui.common.rememberHapticTap
@@ -90,14 +90,13 @@ internal enum class PhraseCategory(@StringRes val labelRes: Int, @ArrayRes val p
  */
 @Composable
 fun SpeakScreen(
-    phraseRepository: PhraseRepository,
-    onSavePhrase: (String) -> Unit,
-    onRemovePhrase: (String) -> Unit,
+    viewModel: SpeakViewModel,
+    onSaved: () -> Unit,
     hapticsEnabled: Boolean,
     onSpeak: (String) -> Unit,
     contentPadding: PaddingValues,
 ) {
-    val saved by phraseRepository.phrases.collectAsStateWithLifecycle(initialValue = emptyList())
+    val saved by viewModel.saved.collectAsStateWithLifecycle()
     var draft by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf(PhraseCategory.GREETING) }
     var showing by rememberSaveable { mutableStateOf<String?>(null) }
@@ -130,14 +129,15 @@ fun SpeakScreen(
         },
         onSave = {
             tap()
-            onSavePhrase(draft)
+            viewModel.save(draft)
+            onSaved()
             saveBurst++
             draft = ""
             category = PhraseCategory.MINE
         },
         onRemove = {
             tap()
-            onRemovePhrase(it)
+            viewModel.remove(it)
         },
         contentPadding = contentPadding,
         saveBurst = saveBurst,

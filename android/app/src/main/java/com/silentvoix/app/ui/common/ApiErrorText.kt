@@ -4,8 +4,8 @@ import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.silentvoix.app.R
-import com.silentvoix.app.data.api.ApiError
-import com.silentvoix.app.data.auth.FormError
+import com.silentvoix.app.domain.common.ApiError
+import com.silentvoix.app.domain.auth.FormError
 
 /** A sentence for the person, never the server's code. */
 @Composable

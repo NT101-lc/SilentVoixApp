@@ -1,5 +1,7 @@
 package com.silentvoix.app.ui.theme
 
+import com.silentvoix.app.domain.settings.ThemeMode
+
 import android.app.Activity
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -11,8 +13,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-
-enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 @Composable
 fun SilentVoixTheme(

@@ -1,12 +1,18 @@
 package com.silentvoix.app.data.api
 
-import com.silentvoix.app.data.admin.AdminOverview
-import com.silentvoix.app.data.admin.FeedbackItem
-import com.silentvoix.app.data.admin.FeedbackKind
-import com.silentvoix.app.data.admin.ManagedUser
-import com.silentvoix.app.data.auth.Account
-import com.silentvoix.app.data.auth.Session
-import com.silentvoix.app.data.auth.UserRole
+import com.silentvoix.app.domain.common.ApiError
+import com.silentvoix.app.domain.common.ApiResult
+
+import com.silentvoix.app.domain.admin.AdminOverview
+import com.silentvoix.app.domain.admin.FeedbackItem
+import com.silentvoix.app.domain.admin.FeedbackKind
+import com.silentvoix.app.domain.admin.ManagedUser
+import com.silentvoix.app.domain.auth.Account
+import com.silentvoix.app.domain.auth.Session
+import com.silentvoix.app.domain.auth.UserRole
+import com.silentvoix.app.domain.admin.AdminRepository
+import com.silentvoix.app.domain.auth.AuthRepository
+import com.silentvoix.app.domain.feedback.FeedbackRepository
 import java.io.IOException
 import java.time.Instant
 import java.time.format.DateTimeParseException
@@ -23,30 +29,30 @@ class SilentVoixApi(
     baseUrl: String,
     private val appVersion: String,
     private val transport: HttpTransport = UrlConnectionTransport(),
-) {
+) : AuthRepository, AdminRepository, FeedbackRepository {
     private val base = baseUrl.trimEnd('/')
 
-    suspend fun login(email: String, password: String): ApiResult<Session> =
+    override suspend fun login(email: String, password: String): ApiResult<Session> =
         call("POST", "/api/v1/auth/login", token = null, body = device().put("email", email).put("password", password)) {
             session(JSONObject(it))
         }
 
-    suspend fun register(email: String, password: String, displayName: String?): ApiResult<Session> =
+    override suspend fun register(email: String, password: String, displayName: String?): ApiResult<Session> =
         call(
             "POST", "/api/v1/auth/register", token = null,
             body = device().put("email", email).put("password", password).put("displayName", displayName ?: JSONObject.NULL),
         ) { session(JSONObject(it)) }
 
-    suspend fun me(token: String): ApiResult<Account> =
+    override suspend fun me(token: String): ApiResult<Account> =
         call("GET", "/api/v1/auth/me", token) { account(JSONObject(it)) }
 
-    suspend fun logout(token: String): ApiResult<Unit> =
+    override suspend fun logout(token: String): ApiResult<Unit> =
         call("POST", "/api/v1/auth/logout", token, body = JSONObject()) { }
 
-    suspend fun sendFeedback(token: String, kind: FeedbackKind, message: String): ApiResult<Unit> =
+    override suspend fun sendFeedback(token: String, kind: FeedbackKind, message: String): ApiResult<Unit> =
         call("POST", "/api/v1/feedback", token, body = JSONObject().put("kind", kind.apiValue).put("message", message)) { }
 
-    suspend fun overview(token: String): ApiResult<AdminOverview> =
+    override suspend fun overview(token: String): ApiResult<AdminOverview> =
         call("GET", "/api/v1/admin/overview", token) {
             val json = JSONObject(it)
             AdminOverview(
@@ -60,23 +66,22 @@ class SilentVoixApi(
             )
         }
 
-    suspend fun users(token: String): ApiResult<List<ManagedUser>> =
+    override suspend fun users(token: String): ApiResult<List<ManagedUser>> =
         call("GET", "/api/v1/admin/users", token) { body -> JSONArray(body).objects().map(::managedUser) }
 
-    /** Changes only the fields given. */
-    suspend fun updateUser(token: String, id: String, role: UserRole? = null, locked: Boolean? = null): ApiResult<ManagedUser> {
+    override suspend fun updateUser(token: String, id: String, role: UserRole?, locked: Boolean?): ApiResult<ManagedUser> {
         val change = JSONObject()
         if (role != null) change.put("role", role.apiValue)
         if (locked != null) change.put("locked", locked)
         return call("PATCH", "/api/v1/admin/users/$id", token, body = change) { managedUser(JSONObject(it)) }
     }
 
-    suspend fun feedback(token: String, openOnly: Boolean): ApiResult<List<FeedbackItem>> =
+    override suspend fun feedback(token: String, openOnly: Boolean): ApiResult<List<FeedbackItem>> =
         call("GET", "/api/v1/admin/feedback?status=${if (openOnly) "open" else "all"}", token) { body ->
             JSONArray(body).objects().map(::feedbackItem)
         }
 
-    suspend fun setResolved(token: String, id: String, resolved: Boolean): ApiResult<FeedbackItem> =
+    override suspend fun setResolved(token: String, id: String, resolved: Boolean): ApiResult<FeedbackItem> =
         call("PATCH", "/api/v1/admin/feedback/$id", token, body = JSONObject().put("resolved", resolved)) {
             feedbackItem(JSONObject(it))
         }

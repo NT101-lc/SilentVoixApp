@@ -1,6 +1,6 @@
 package com.silentvoix.app.ui
 
-import com.silentvoix.app.data.auth.UserRole
+import com.silentvoix.app.domain.auth.UserRole
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

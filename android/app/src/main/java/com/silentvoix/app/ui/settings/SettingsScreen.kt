@@ -1,5 +1,7 @@
 package com.silentvoix.app.ui.settings
 
+import com.silentvoix.app.domain.settings.AppSettings
+
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.speech.tts.TextToSpeech
@@ -70,8 +72,8 @@ import androidx.compose.ui.unit.dp
 import com.silentvoix.app.BuildConfig
 import com.silentvoix.app.R
 import com.silentvoix.app.ui.scene.skyWash
-import com.silentvoix.app.data.admin.FeedbackKind
-import com.silentvoix.app.data.auth.Account
+import com.silentvoix.app.domain.admin.FeedbackKind
+import com.silentvoix.app.domain.auth.Account
 import com.silentvoix.app.ui.admin.RolePill
 import com.silentvoix.app.speech.SpeechRate
 import com.silentvoix.app.speech.SpeechStatus
@@ -81,7 +83,7 @@ import com.silentvoix.app.ui.common.SectionLabel
 import com.silentvoix.app.ui.common.SegmentedControl
 import com.silentvoix.app.ui.common.rememberHapticTap
 import com.silentvoix.app.ui.theme.EyebrowStyle
-import com.silentvoix.app.ui.theme.ThemeMode
+import com.silentvoix.app.domain.settings.ThemeMode
 import java.util.Locale
 
 private val ContentMaxWidth = 640.dp

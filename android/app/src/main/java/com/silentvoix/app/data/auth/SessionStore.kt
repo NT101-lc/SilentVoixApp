@@ -1,10 +1,15 @@
 package com.silentvoix.app.data.auth
 
+import com.silentvoix.app.domain.auth.Account
+import com.silentvoix.app.domain.auth.Session
+import com.silentvoix.app.domain.auth.UserRole
+
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.silentvoix.app.domain.auth.SessionRepository
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -15,9 +20,9 @@ import kotlinx.coroutines.flow.map
  * in, even offline. The file is left out of backups (res/xml/backup_rules.xml), so a token never
  * travels to another device.
  */
-class SessionStore(private val dataStore: DataStore<Preferences>) {
+class SessionStore(private val dataStore: DataStore<Preferences>) : SessionRepository {
 
-    val session: Flow<Session?> = dataStore.data
+    override val session: Flow<Session?> = dataStore.data
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
         .map { prefs ->
             val token = prefs[TOKEN]
@@ -29,21 +34,20 @@ class SessionStore(private val dataStore: DataStore<Preferences>) {
             }
         }
 
-    suspend fun save(session: Session) {
+    override suspend fun save(session: Session) {
         dataStore.edit { prefs ->
             prefs[TOKEN] = session.token
             prefs.putAccount(session.account)
         }
     }
 
-    /** Refreshes who is signed in; does nothing when nobody is. */
-    suspend fun updateAccount(account: Account) {
+    override suspend fun updateAccount(account: Account) {
         dataStore.edit { prefs ->
             if (prefs[TOKEN] != null) prefs.putAccount(account)
         }
     }
 
-    suspend fun clear() {
+    override suspend fun clear() {
         dataStore.edit { it.clear() }
     }
 

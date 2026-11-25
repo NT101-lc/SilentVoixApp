@@ -2,7 +2,7 @@ package com.silentvoix.app.ui
 
 import androidx.annotation.StringRes
 import com.silentvoix.app.R
-import com.silentvoix.app.data.auth.UserRole
+import com.silentvoix.app.domain.auth.UserRole
 
 /** Top-level destinations, in navigation order. The app opens on [HOME]. */
 enum class AppDestination(@StringRes val labelRes: Int, @StringRes val titleRes: Int) {
