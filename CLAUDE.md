@@ -40,7 +40,8 @@ on repository *interfaces*, never on JDBC, DataStore, Room or HTTP (dependency i
   `DatabaseException` (unique violations: `DuplicateKeyException`, which a service turns into a
   refusal), then 503. New SQL goes in a repository, new rules in a service, never in a controller.
 - Android: `AppContainer` (implemented by `SilentVoixApplication`) is the only place naming
-  implementations; ViewModels are created with `viewModel { XViewModel(appContainer()) }` and take
+  implementations; ViewModels are created with `rememberViewModel { XViewModel(it) }` (`ui/ViewModels.kt`;
+  not `lifecycle-viewmodel-compose`, which would lift Compose past the BOM) and take
   the interfaces in their primary constructor, so tests pass fakes (`app/src/test/.../ui/fakes`).
   `domain/` is plain Kotlin (no Android, no `data/` imports); `ui/` never imports `data/`.
 

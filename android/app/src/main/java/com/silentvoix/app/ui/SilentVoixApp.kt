@@ -46,9 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.silentvoix.app.R
-import com.silentvoix.app.appContainer
 import com.silentvoix.app.domain.settings.ThemeMode
 import com.silentvoix.app.recognition.Recognition
 import com.silentvoix.app.speech.SpeakOutcome
@@ -84,7 +82,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun SilentVoixApp() {
-    val app: AppViewModel = viewModel { AppViewModel(appContainer()) }
+    val app: AppViewModel = rememberViewModel { AppViewModel(it) }
     // Null until the stored settings are read (a few ms); drawing nothing meanwhile avoids a
     // flash of the default theme before a saved dark theme applies.
     val storedSettings by app.settings.collectAsStateWithLifecycle()
@@ -169,9 +167,9 @@ fun SilentVoixApp() {
     ) {
         if (session == null) {
             AuthScreen(
-                viewModel = viewModel { AuthViewModel(appContainer().authRepository) },
+                viewModel = rememberViewModel { AuthViewModel(it.authRepository) },
                 onSignedIn = app::onSignedIn,
-                notice = if (sessionExpired) context.getString(R.string.session_expired) else null,
+                notice = if (sessionExpired) stringResource(R.string.session_expired) else null,
             )
             return@SilentVoixTheme
         }
@@ -201,7 +199,7 @@ fun SilentVoixApp() {
             screenStateHolder.SaveableStateProvider(target.name) {
                 when (target) {
                     AppDestination.HOME -> HomeScreen(
-                        viewModel = viewModel { HomeViewModel(appContainer()) },
+                        viewModel = rememberViewModel { HomeViewModel(it) },
                         isDarkTheme = isDark,
                         // Leaves "follow the system" for an explicit choice: the opposite of what is showing.
                         onToggleTheme = {
@@ -234,14 +232,14 @@ fun SilentVoixApp() {
                         onStartRequestHandled = { translateStartRequested = false },
                     )
                     AppDestination.SPEAK -> SpeakScreen(
-                        viewModel = viewModel { SpeakViewModel(appContainer()) },
+                        viewModel = rememberViewModel { SpeakViewModel(it) },
                         onSaved = { showMessage(context.getString(R.string.speak_saved)) },
                         hapticsEnabled = settings.haptics,
                         onSpeak = { speak(it, true) },
                         contentPadding = contentPadding,
                     )
                     AppDestination.HISTORY -> HistoryScreen(
-                        viewModel = viewModel { HistoryViewModel(appContainer()) },
+                        viewModel = rememberViewModel { HistoryViewModel(it) },
                         onCleared = { showMessage(context.getString(R.string.history_cleared)) },
                         onNavigateToTranslate = { destination = AppDestination.TRANSLATE },
                         hapticsEnabled = settings.haptics,
@@ -250,8 +248,8 @@ fun SilentVoixApp() {
                     )
                     AppDestination.ADMIN -> AdminScreen(
                         // One per session: a new sign-in never sees the last one's data or token.
-                        viewModel = viewModel(key = "admin-${session.token.hashCode()}") {
-                            AdminViewModel(appContainer().adminRepository, session.token)
+                        viewModel = rememberViewModel(key = "admin-${session.token.hashCode()}") {
+                            AdminViewModel(it.adminRepository, session.token)
                         },
                         currentUserId = session.account.id,
                         backendStatus = backendStatus,

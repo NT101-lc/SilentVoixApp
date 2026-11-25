@@ -1,7 +1,5 @@
 package com.silentvoix.app
 
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
-import androidx.lifecycle.viewmodel.CreationExtras
 import com.silentvoix.app.domain.admin.AdminRepository
 import com.silentvoix.app.domain.auth.AuthRepository
 import com.silentvoix.app.domain.auth.SessionRepository
@@ -28,6 +26,3 @@ interface AppContainer {
     val feedbackRepository: FeedbackRepository
     val backendHealthRepository: BackendHealthRepository
 }
-
-/** The container inside a `viewModel { ... }` initializer. */
-fun CreationExtras.appContainer(): AppContainer = this[APPLICATION_KEY] as AppContainer

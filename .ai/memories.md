@@ -19,6 +19,6 @@
 - Goal: refactor both projects into user -> logic -> repository layers following SOLID.
 - Branch: `refactor/layered-architecture` (pushed; not merged, no PR).
 - Backend: controllers map HTTP only; `*Service` holds rules; SQL in `*Repository` interfaces with `Jdbc*Repository` implementations; `Transactions` interface implemented by `Jdbc` (thread-bound connection). HTTP API unchanged.
-- Android: `domain/` (models, rules, repository interfaces), `data/` (implementations), ViewModels per screen, `AppContainer` DI; added `lifecycle-viewmodel-compose` and `kotlinx-coroutines-test`.
+- Android: `domain/` (models, rules, repository interfaces), `data/` (implementations), ViewModels per screen, `AppContainer` DI; added `lifecycle-viewmodel` (not `-compose`: it lifts Compose 1.7 -> 1.11 and new lint errors) and `kotlinx-coroutines-test`.
 - Checks: backend `mvnw verify` passed locally (126 tests, Docker). No Android SDK on this machine; Android verified only via CI `workflow_dispatch` on the branch.
 - Open: `TranslateScreen` still holds its camera/session state in the composable (`TranslateSession` is the logic); merge the branch after review.
