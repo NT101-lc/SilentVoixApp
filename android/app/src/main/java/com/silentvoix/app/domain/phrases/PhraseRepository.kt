@@ -14,7 +14,7 @@ interface PhraseRepository {
     companion object {
         const val MAX_PHRASES = 40
         const val MAX_LENGTH = 200
-        private val Whitespace = Regex("\s+")
+        private val Whitespace = Regex("\\s+")
 
         /** A phrase as it is stored and spoken: one line, single spaces, at most [MAX_LENGTH] characters. */
         fun normalize(text: String): String = text.trim().replace(Whitespace, " ").take(MAX_LENGTH).trim()

@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
@@ -154,6 +156,7 @@ class HealthEndpointTest {
     class RealDatabase {
 
         private static final TestDatabase.Database DATABASE = TestDatabase.fresh();
+        private static final Pattern TESTCONTAINERS_LOGGER = Pattern.compile("\\] (tc\\.|o\\.t\\.|org\\.testcontainers)");
 
         @DynamicPropertySource
         static void database(DynamicPropertyRegistry registry) {
@@ -176,7 +179,12 @@ class HealthEndpointTest {
         @Test
         void startupLogsNeverNameTheDatabase(CapturedOutput output) {
             // Flyway announces the database it connects to; that line must not carry the URL.
-            assertThat(output.toString())
+            // Testcontainers' own lines name its throwaway container and depend on test order, so
+            // only the application's lines are checked.
+            String appLogs = output.toString().lines()
+                    .filter(line -> !TESTCONTAINERS_LOGGER.matcher(line).find())
+                    .collect(Collectors.joining("\n"));
+            assertThat(appLogs)
                     .contains("Database schema at version")
                     .doesNotContain(DATABASE.jdbcUrl(), "jdbc:postgresql://");
         }
