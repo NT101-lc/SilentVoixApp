@@ -23,6 +23,27 @@ database directly. The backend listens on `8081` (`PORT` overrides).
 
 Planned but not yet in any build file: Spring WebSocket. Add a dependency only when the code that uses it lands.
 
+## Architecture: user layer -> logic layer -> repository layer
+
+Both projects are layered; each layer depends only on the one below, and the logic layer depends
+on repository *interfaces*, never on JDBC, DataStore, Room or HTTP (dependency inversion).
+
+| Layer | Backend (`com.silentvoix.backend.<feature>`) | Android (`com.silentvoix.app`) |
+|---|---|---|
+| User | `*Controller` (HTTP mapping only), `AuthInterceptor` | Composables in `ui/`: stateful `*Screen` wiring + stateless `*Content` |
+| Logic | `*Service` (`AuthService`, `AdminService`, `FeedbackService`, `HealthService`), `Credentials`, `LoginThrottle` | `ui/**/*ViewModel` (`AppViewModel`, `AuthViewModel`, `AdminViewModel`, `HomeViewModel`, `HistoryViewModel`, `SpeakViewModel`) and pure rules/models in `domain/` |
+| Repository | interfaces `AccountRepository`, `SessionRepository`, `AdminUserRepository`, `FeedbackRepository`; `Jdbc*Repository` implementations; `DatabaseHealthChecker` | interfaces in `domain/**` (`SettingsRepository`, `PhraseRepository`, `HistoryRepository`, `SessionRepository`, `AuthRepository`, `AdminRepository`, `FeedbackRepository`, `BackendHealthRepository`); implementations in `data/` |
+
+- Backend: services open transactions through `database/Transactions`; `database/Jdbc` implements
+  it (connection bound to the thread, so repositories called inside share it; nested calls join)
+  and gives repositories `list`/`one`/`single`/`update`/`count`. SQL errors become the unchecked
+  `DatabaseException` (unique violations: `DuplicateKeyException`, which a service turns into a
+  refusal), then 503. New SQL goes in a repository, new rules in a service, never in a controller.
+- Android: `AppContainer` (implemented by `SilentVoixApplication`) is the only place naming
+  implementations; ViewModels are created with `viewModel { XViewModel(appContainer()) }` and take
+  the interfaces in their primary constructor, so tests pass fakes (`app/src/test/.../ui/fakes`).
+  `domain/` is plain Kotlin (no Android, no `data/` imports); `ui/` never imports `data/`.
+
 ## Current state: Phase 1
 
 Backend (`backend-java/`):
@@ -57,7 +78,7 @@ Backend (`backend-java/`):
   `user`. `LoginThrottle` (in memory): 5 wrong passwords per address per 15 min. Errors are
   `{"error": "<code>"}` (`api/ApiException`); `database/Jdbc` runs plain JDBC in a transaction and turns
   SQL failures into 503 `database_unavailable`, logging the SQLState only. Admins cannot change their
-  own account.
+  own account (`AdminService`); locking revokes every session (`SessionRepository.revokeAllFor`).
 - Deployment: live at https://silentvoixapp-production.up.railway.app (Railway project
   `diligent-fulfillment`, service `SilentVoixApp`, deploys `main` from `/backend-java` on every push
   touching it) on Neon. `backend-java/Dockerfile` (JDK 21 build, JRE runtime, non-root; tests are left
@@ -74,23 +95,27 @@ Backend (`backend-java/`):
   `RealDatabase` case: startup migrates a real database, health is UP, and no log line names it.
   `AuthApiTest` and `AdminApiTest` drive the account endpoints through the full context against a real
   migrated database; `AuthWithoutDatabaseTest` covers the 503s; `PasswordHasherTest`, `SessionTokensTest`,
-  `LoginThrottleTest` are plain unit tests. `./mvnw test`.
+  `LoginThrottleTest` are plain unit tests; `AuthServiceTest` and `AdminServiceTest` check the service
+  rules against in-memory repositories (`DirectTransactions`, no Docker). `./mvnw test`.
 
 Android (`android/`):
-- Vietnamese UI in `res/values/strings.xml`. `ui/SilentVoixApp.kt` holds the stores, speech, the session
-  and the destinations; its stateless `AppShell` is the `NavigationSuiteScaffold` (bottom bar on
+- Vietnamese UI in `res/values/strings.xml`. `ui/SilentVoixApp.kt` holds speech and the destinations;
+  `ui/AppViewModel` holds settings, the session (sign-in/out, `/auth/me` refresh), history writes, the
+  feedback form and backend health; its stateless `AppShell` is the `NavigationSuiteScaffold` (bottom bar on
   phones, rail on larger windows) over the tabs `destinationsFor(role)` gives: users get Trang chủ / Dịch
   / Nói / Lịch sử / Cài đặt, admins also Quản trị (before Cài đặt).
 - Auth: nobody signed in sees `ui/auth/AuthScreen` (stateless `AuthContent`; sign in or register,
-  validated by `data/auth/AuthForm.kt` with the backend's rules). `data/auth/SessionStore` keeps the
+  validated by `domain/auth/AuthForm.kt` with the backend's rules, state in `AuthViewModel`).
+  `data/auth/SessionStore` (a `SessionRepository`) keeps the
   token and account in a third Preferences DataStore (`session`, excluded from backup via
   `res/xml/backup_rules.xml` and `data_extraction_rules.xml`). On start and after any admin 403 the app
   calls `/auth/me`; `SessionRefresh` replaces the account, signs out on 401, keeps it when offline.
-  `data/api/SilentVoixApi` is the only API client (transport injectable for tests); `ApiError` maps the
+  `data/api/SilentVoixApi` is the only API client and implements `AuthRepository`, `AdminRepository` and
+  `FeedbackRepository` (transport injectable for tests); `domain/common/ApiError` maps the
   server's codes, `ui/common/ApiErrorText.kt` turns them into Vietnamese. The role in the app only
   hides tabs; the server enforces it.
-- Admin (`ui/admin/AdminScreen.kt`, stateless `AdminContent`): overview counts, account list with
-  search (`data/admin/AdminModels.kt` `matching`, Vietnamese marks optional), grant/remove admin and
+- Admin (`ui/admin/AdminScreen.kt`, stateless `AdminContent`, state in `AdminViewModel`, one per session): overview counts, account list with
+  search (`domain/admin/AdminModels.kt` `matching`, Vietnamese marks optional), grant/remove admin and
   lock/unlock (confirm dialogs for grant and lock; own row has no menu), feedback inbox (open/all,
   resolve/reopen), and server status (`ui/common/BackendStatusRow`, moved out of Settings). Settings
   shows the account (sign out with confirmation) and a feedback form for everyone. The app opens on Trang
@@ -98,13 +123,13 @@ Android (`android/`):
   (`startRequested` on `TranslateScreen`); never on launch.
 - Real: home dashboard (`ui/home/HomeScreen.kt`, stateless `HomeContent`): greeting and date, a
   light/dark toggle, the hero action, stat tiles and a 7-day bar chart from
-  `data/history/HistoryStats.kt` (`historyStats`: today, total, favourites, week, streak, top
+  `domain/history/HistoryStats.kt` (`historyStats`: today, total, favourites, week, streak, top
   phrase), the gesture catalogue (`recognition/GesturePhrases.kt`: `SupportedGestures`, each with
   a drawn `HandPose.glyph`), and the latest phrases. Everything is derived from the device's
   history; nothing comes from the backend.
 - Real: Speak (`ui/speak/SpeakScreen.kt`): type a sentence or tap a ready-made phrase (string
   arrays `phrases_*`), the phone speaks it and shows it full-screen (`ui/common/FullscreenCaption`).
-  The user's own phrases are saved by `data/phrases/PhraseRepository` in a second Preferences
+  The user's own phrases are saved by `data/phrases/DataStorePhraseRepository` in a second Preferences
   DataStore (`phrases`), newest first, single-line, capped.
 - Real: backend health check, shown to admins (`data/backend/BackendHealthClient`, base URL from
   `BuildConfig.BACKEND_BASE_URL`, Gradle property `silentvoix.backendBaseUrl`, default the Railway
@@ -121,11 +146,13 @@ Android (`android/`):
   `SilentVoixApp` and released on dispose. Replay (Translate/History) and the Settings preview
   show a snackbar when speech is unavailable; auto-speak stays silent. The manifest's `<queries>`
   entry for `TTS_SERVICE` is required on Android 11+.
-- Real: persistence. `SilentVoixApplication` (the manifest's `android:name`) holds the stores and an
-  `appScope` for writes. Settings: Preferences DataStore via `data/settings/SettingsRepository`
-  (bad stored values fall back to defaults). History: Room (`data/history/`), one row per
-  recognised phrase, written from `SilentVoixApp.onNewResult`; device-only, not synced to the
-  backend. `HistoryUiState` (loading/error/loaded) is derived from the Room flow. Room schemas
+- Real: persistence. `SilentVoixApplication` (the manifest's `android:name`) is the `AppContainer`:
+  it builds the repositories and an `appScope` for writes. Settings (`domain/settings/AppSettings`,
+  `ThemeMode`): Preferences DataStore via `data/settings/DataStoreSettingsRepository` (bad stored
+  values fall back to defaults). History: Room (`data/history/RoomHistoryRepository`), one row per
+  recognised phrase, written by `AppViewModel.onRecognized`; device-only, not synced to the
+  backend. `ui/history/HistoryUiState` (loading/error/loaded) is derived from the Room flow in
+  `HistoryViewModel`. Room schemas
   are exported to `android/app/schemas/` and committed: bump the version and add a migration
   when the entity changes.
 - UI: Lora and Be Vietnam Pro (both OFL, `res/font`, licences in `assets/licenses`). Translate is
@@ -152,7 +179,7 @@ Android (`android/`):
   freezes ambient motion when system animations are off. Tabs cross-fade and slide by direction
   (`AnimatedContent` in `SilentVoixApp`); cards use `Modifier.pressBounce`; the full-screen caption
   rises into place; the week chart's bars grow in.
-- Rewards: `data/progress/Milestones.kt` (streaks of 3/7/30 days, 10/50/100 phrases; only the
+- Rewards: `domain/progress/Milestones.kt` (streaks of 3/7/30 days, 10/50/100 phrases; only the
   rarest new one is shown, and all reached ones are then recorded) drives a celebration card with
   falling leaves on Home; celebrated milestones are stored in `AppSettings.celebratedMilestones`.
   Saving a phrase on Speak throws a few leaves from the button. `HistoryContent` is the stateless History screen (day-grouped rows, clear-all behind a
@@ -164,7 +191,9 @@ Android (`android/`):
 - Nothing is demo-only any more; no demo data or `DemoBadge` remains. If a placeholder is ever
   needed again, label it visibly in the UI.
 - Unit tests (JUnit 4, `app/src/test`) cover `GestureStabilizer`, `TranslateSession`, `HandPose`,
-  `SpeechController`, `SettingsRepository` and `PhraseRepository` (against real DataStore files),
+  `SpeechController`, the DataStore settings and phrase repositories (against real DataStore files),
+  the ViewModels (`AppViewModel`, `AuthViewModel`, `AdminViewModel`, with fakes and
+  `kotlinx-coroutines-test`),
   `HistoryUiState`, `historyStats`, history day labels, palette contrast, the scene model, leaf
   bursts, motion settings, milestones, the auth form, `ApiError`, `SessionStore`, `SessionRefresh`,
   role-based tabs, user search, and `SilentVoixApi` against a scripted transport (Robolectric for
